@@ -120,7 +120,8 @@ const fmtData = d => new Date(d).toLocaleDateString('it-IT',{weekday:'short',day
 const fmtOra = d => new Date(d).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
 const chiusura = c => new Date(new Date(c.orario).getTime() - 3600000); // pronostici chiusi 1 ora prima
 const stato = c => c.arrivo?.length ? 'fine' : (chiusura(c) <= new Date() ? 'chiusa' : 'aperta');
-const nomeCav = (c,n) => (c.partenti.find(p => p.n == n) || {}).cavallo || ('n. ' + n);
+const nomeCav = (c,n) => '';
+const numeri = t => String(t||'').split(/[^0-9]+/).filter(Boolean).map(Number);
 // Tempo al km in decimi di secondo: 1'12"1 -> 721
 function parseTempo(s){
   const m = String(s||'').trim().match(/^(\d)\D+(\d{1,2})\D+(\d)\D*$/) || String(s||'').trim().match(/^(\d)(\d{2})(\d)$/);
@@ -229,16 +230,16 @@ function cardCorsa(c){
   const pos = n => n==p.primo?'1°':n==p.secondo?'2°':n==p.terzo?'3°':'';
   let corpo = '';
   if (s === 'aperta') {
-    const opt = sel => '<option value="">—</option>' + c.partenti.map(x => `<option value="${x.n}" ${sel==x.n?'selected':''}>${x.n} · ${esc(x.cavallo)}</option>`).join('');
-    corpo = `<div class="partenti">${c.partenti.map(x => `<div class="partente"><span class="num">${x.n}</span><div><b>${esc(x.cavallo)}</b><div class="drv">${esc(x.driver||'')}</div></div><span class="pos">${pos(x.n)}</span></div>`).join('')}</div>
-      <div class="picks"><div><label>1° 🥇</label><select id="p1-${c.id}">${opt(p.primo)}</select></div><div><label>2° 🥈</label><select id="p2-${c.id}">${opt(p.secondo)}</select></div><div><label>3° 🥉</label><select id="p3-${c.id}">${opt(p.terzo)}</select></div></div>
-      <div class="row"><div><label>🔄 Riserva</label><select id="pr-${c.id}">${opt(p.riserva)}</select></div><div><label>⏱ Tempo al km del vincitore</label><input id="pt-${c.id}" placeholder="1'12&quot;1" value="${fmtTempo(p.tempo).replace(/"/g,'&quot;')}" inputmode="text"></div></div>
+    const num = (id, val, ph) => `<input type="number" inputmode="numeric" min="1" max="30" id="${id}-${c.id}" value="${val??''}" placeholder="${ph}" style="text-align:center;font-size:20px;font-weight:800">`;
+    corpo = `<p class="muted" style="margin-bottom:6px">Scrivi il <b>numero</b> dei cavalli</p>
+      <div class="picks"><div><label>1° 🥇</label>${num('p1',p.primo,'n°')}</div><div><label>2° 🥈</label>${num('p2',p.secondo,'n°')}</div><div><label>3° 🥉</label>${num('p3',p.terzo,'n°')}</div></div>
+      <div class="row"><div><label>🔄 Riserva</label>${num('pr',p.riserva,'n°')}</div><div><label>⏱ Tempo al km del vincitore</label><input id="pt-${c.id}" placeholder="1'12&quot;1" value="${fmtTempo(p.tempo).replace(/"/g,'&quot;')}" inputmode="text"></div></div>
       <div id="m-${c.id}"></div><button class="btn full" onclick="salvaPronostico(${c.id})">${p.id ? 'Aggiorna pronostico' : 'Salva pronostico'}</button>
       <button class="btn-ghost full" style="margin-top:8px" onclick="vediPronostici(${c.id})">Pronostici di tutti</button><div id="tutti-${c.id}"></div>`;
   } else {
-    const tuo = p.primo ? `<p class="muted" style="margin-top:8px">Il tuo pronostico: <b>${[p.primo,p.secondo,p.terzo].filter(Boolean).map(n=>n+' '+esc(nomeCav(c,n))).join(' – ')}</b>${p.riserva?` · riserva <b>${p.riserva} ${esc(nomeCav(c,p.riserva))}</b>`:''}${p.tempo?` · tempo <b>${fmtTempo(p.tempo)}</b>`:''}</p>` : '<p class="muted" style="margin-top:8px">Non hai pronosticato questa corsa.</p>';
+    const tuo = p.primo ? `<p class="muted" style="margin-top:8px">Il tuo pronostico: <b>${[p.primo,p.secondo,p.terzo].filter(Boolean).map(n=>'n° '+n).join(' – ')}</b>${p.riserva?` · riserva <b>n° ${p.riserva}</b>`:''}${p.tempo?` · tempo <b>${fmtTempo(p.tempo)}</b>`:''}</p>` : '<p class="muted" style="margin-top:8px">Non hai pronosticato questa corsa.</p>';
     const extra = s==='fine' ? `<p class="muted" style="margin-top:6px">${c.tempo_ufficiale?`⏱ Tempo ufficiale <b>${fmtTempo(c.tempo_ufficiale)}</b>`:''}${c.ritirati?.length?` · Ritirati: ${c.ritirati.join(', ')}`:''}${c.rotture?.length?` · Squalificati per rottura: ${c.rotture.join(', ')}`:''}</p>` : '';
-    const arr = s==='fine' ? `<div class="arrivo">${c.arrivo.map((n,i)=>`<span class="a">${i+1}° ${n} ${esc(nomeCav(c,n))}</span>`).join('')}</div>${extra}` : '';
+    const arr = s==='fine' ? `<div class="arrivo">${c.arrivo.map((n,i)=>`<span class="a">${i+1}° n° ${n}</span>`).join('')}</div>${extra}` : '';
     const pt = s==='fine' && p.primo ? (v => `<div class="punti">${v>=0?'+':''}${v} punti</div>`)(calcPunti(p, c)) : '';
     corpo = arr + tuo + pt + `<button class="btn-ghost full" style="margin-top:10px" onclick="vediPronostici(${c.id})">Pronostici di tutti</button><div id="tutti-${c.id}"></div>`;
   }
@@ -332,15 +333,13 @@ function renderAdmin(){
     <div class="row"><div><label>Ippodromo</label><input id="cIpp" placeholder="es. San Siro"></div><div style="flex:0 0 90px"><label>N° corsa</label><input type="number" id="cNum" value="1" min="1"></div></div>
     <label>Nome premio</label><input id="cNome" placeholder="es. Premio Gaida - Corsa Tris">
     <label>Data e ora di partenza ufficiale (i pronostici chiudono 1 ora prima)</label><input type="datetime-local" id="cOra">
-    <label>Partenti: una riga per cavallo → numero cavallo - driver</label>
-    <textarea id="cPart" placeholder="1 Varenne - G. Pellegrini&#10;2 Face Time Bourbon - B. Goop&#10;3 Vivid Wise As - M. Smorgon"></textarea>
     <div id="cMsg"></div><button class="btn full" onclick="nuovaCorsa()">Aggiungi corsa</button></div>
   <div class="card"><h3 style="font-size:22px">3. Inserisci arrivo ufficiale</h3>
     ${daChiudere.length ? daChiudere.map(c => `<div style="border-top:1px solid #eee;padding-top:10px;margin-top:10px"><b>${c.numero}ª ${esc(c.ippodromo)}</b> <span class="muted">${esc(c.nome)}</span>
-      <div class="picks" style="margin-top:6px">${[1,2,3].map(k=>`<select id="a${k}-${c.id}"><option value="">${k}°</option>${c.partenti.map(x=>`<option value="${x.n}">${x.n} ${esc(x.cavallo)}</option>`).join('')}</select>`).join('')}</div>
+      <div class="picks" style="margin-top:6px">${[1,2,3].map(k=>`<div><label>${k}° arrivato</label><input type="number" inputmode="numeric" min="1" max="30" id="a${k}-${c.id}" placeholder="n°"></div>`).join('')}</div>
       <label>⏱ Tempo al km ufficiale del vincitore</label><input id="at-${c.id}" placeholder="1'12&quot;1">
-      <label>Ritirati (non partiti)</label><div class="checks">${c.partenti.map(x=>`<label class="chk"><input type="checkbox" class="rit-${c.id}" value="${x.n}" ${(c.ritirati||[]).includes(x.n)?'checked':''}> ${x.n} ${esc(x.cavallo)}</label>`).join('')}</div>
-      <label>Squalificati per rottura</label><div class="checks">${c.partenti.map(x=>`<label class="chk"><input type="checkbox" class="rot-${c.id}" value="${x.n}" ${(c.rotture||[]).includes(x.n)?'checked':''}> ${x.n} ${esc(x.cavallo)}</label>`).join('')}</div>
+      <label>Ritirati (numeri separati da virgola)</label><input id="ar-${c.id}" inputmode="numeric" placeholder="es. 4, 11" value="${(c.ritirati||[]).join(', ')}">
+      <label>Squalificati per rottura (numeri separati da virgola)</label><input id="ao-${c.id}" inputmode="numeric" placeholder="es. 7" value="${(c.rotture||[]).join(', ')}">
       <button class="btn-oro full" onclick="salvaArrivo(${c.id})">Conferma arrivo</button></div>`).join('') : '<p class="muted">Nessuna corsa in attesa di arrivo.</p>'}</div>
   <div class="card"><h3 style="font-size:22px">Gestisci corse</h3>
     ${corse.length ? corse.slice().reverse().map(c => `<div class="row" style="border-bottom:1px solid #eee;padding:8px 0"><div style="flex:3"><b>${c.numero}ª ${esc(c.ippodromo)}</b><div class="muted">${fmtData(c.orario)} ${fmtOra(c.orario)} · ${c.arrivo?.length?'arrivo: '+c.arrivo.join('-'):'senza arrivo'}</div></div>
@@ -361,21 +360,19 @@ function leggiPartenti(txt){
   }).filter(Boolean);
 }
 async function nuovaCorsa(){
-  const partenti = leggiPartenti($('cPart').value);
   const g = $('cG').value, ora = $('cOra').value, ipp = $('cIpp').value.trim();
   if (!g || !ora || !ipp) return msg('cMsg','Compila giornata, ippodromo e orario');
-  if (partenti.length < 2) return msg('cMsg','Inserisci almeno 2 partenti (formato: 1 Nome cavallo - Driver)');
-  const { error } = await sb.from('corse').insert({ giornata_id: +g, ippodromo: ipp, numero: +$('cNum').value || 1, nome: $('cNome').value.trim(), orario: new Date(ora).toISOString(), partenti });
+  const { error } = await sb.from('corse').insert({ giornata_id: +g, ippodromo: ipp, numero: +$('cNum').value || 1, nome: $('cNome').value.trim(), orario: new Date(ora).toISOString(), partenti: [] });
   if (error) return msg('cMsg', error.message);
-  await carica(); renderAdmin(); msg('cMsg', `Corsa aggiunta con ${partenti.length} partenti ✅`, 'ok');
+  await carica(); renderAdmin(); msg('cMsg', 'Corsa aggiunta ✅', 'ok');
 }
 async function salvaArrivo(id){
   const a = [1,2,3].map(k => +$(`a${k}-${id}`).value).filter(Boolean);
-  if (a.length < 3 || new Set(a).size !== 3) return alert('Scegli 1°, 2° e 3° (tutti diversi)');
+  if (a.length < 3 || new Set(a).size !== 3) return alert('Scrivi i numeri di 1°, 2° e 3° (tutti diversi)');
   const tempo_ufficiale = parseTempo($('at-'+id).value);
   if (tempo_ufficiale == null) return alert('Scrivi il tempo ufficiale così: 1\'12"1');
-  const ritirati = [...document.querySelectorAll('.rit-'+id+':checked')].map(x=>+x.value);
-  const rotture = [...document.querySelectorAll('.rot-'+id+':checked')].map(x=>+x.value);
+  const ritirati = numeri($('ar-'+id).value);
+  const rotture = numeri($('ao-'+id).value);
   const { error } = await sb.from('corse').update({ arrivo: a, tempo_ufficiale, ritirati, rotture }).eq('id', id);
   if (error) return alert(error.message); await carica(); renderAdmin();
 }
