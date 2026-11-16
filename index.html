@@ -60,6 +60,7 @@ td.n{text-align:right;font-weight:700}tr.me{background:#fff8e6}
 .hero{background:linear-gradient(135deg,var(--verde),var(--verde2));color:#fff;border-radius:16px;padding:18px;margin-bottom:14px}
 .hero h2{font-size:30px}.hero .big{font-family:'Bebas Neue';font-size:52px;color:var(--oro);line-height:1}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.stats div{background:rgba(255,255,255,.1);border-radius:10px;padding:8px;text-align:center}.stats b{display:block;font-size:20px}
+.checks{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:10px}.chk{display:flex;align-items:center;gap:6px;font-weight:400;color:var(--testo);font-size:13px;margin:0}.chk input{width:auto;margin:0}
 .regole li{margin:6px 0 6px 18px;font-size:15px}
 </style>
 </head>
@@ -119,6 +120,19 @@ const fmtData = d => new Date(d).toLocaleDateString('it-IT',{weekday:'short',day
 const fmtOra = d => new Date(d).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
 const stato = c => c.arrivo?.length ? 'fine' : (new Date(c.orario) <= new Date() ? 'chiusa' : 'aperta');
 const nomeCav = (c,n) => (c.partenti.find(p => p.n == n) || {}).cavallo || ('n. ' + n);
+// Tempo al km in decimi di secondo: 1'12"1 -> 721
+function parseTempo(s){
+  const m = String(s||'').trim().match(/^(\d)\D+(\d{1,2})\D+(\d)\D*$/) || String(s||'').trim().match(/^(\d)(\d{2})(\d)$/);
+  if (!m) return null; const sec = +m[2]; if (sec > 59) return null;
+  return (+m[1])*600 + sec*10 + (+m[3]);
+}
+const fmtTempo = d => d==null ? '' : `${Math.floor(d/600)}'${String(Math.floor((d%600)/10)).padStart(2,'0')}"${d%10}`;
+const fmtDiff = d => d==null ? '-' : (d/10).toFixed(1).replace('.',',') + '"';
+function effettivi(p, c){
+  const e = [p.primo, p.secondo, p.terzo], rit = c.ritirati || []; let usata = false;
+  for (let i=0;i<3;i++) if (e[i]!=null && rit.includes(e[i]) && !usata && p.riserva!=null && !rit.includes(p.riserva)) { e[i] = p.riserva; usata = true; }
+  return e;
+}
 
 function msg(el, testo, tipo='err'){ $(el).innerHTML = testo ? `<div class="msg ${tipo}">${esc(testo)}</div>` : ''; }
 
@@ -187,7 +201,7 @@ function go(p){
 
 // ---------- HOME ----------
 async function renderHome(){
-  const { data: cl } = await sb.from('classifica').select('*').order('punti', { ascending:false });
+  const { data: cl } = await sb.from('classifica').select('*').order('punti', { ascending:false }).order('diff_tempo', { ascending:true });
   const lista = cl || []; const i = lista.findIndex(r => r.user_id === me.id); const mio = lista[i] || { punti:0, corse_giocate:0, vincenti:0 };
   const prossime = corse.filter(c => stato(c)==='aperta').slice(0,3);
   const daFare = prossime.filter(c => !miei[c.id]).length;
@@ -217,39 +231,44 @@ function cardCorsa(c){
     const opt = sel => '<option value="">—</option>' + c.partenti.map(x => `<option value="${x.n}" ${sel==x.n?'selected':''}>${x.n} · ${esc(x.cavallo)}</option>`).join('');
     corpo = `<div class="partenti">${c.partenti.map(x => `<div class="partente"><span class="num">${x.n}</span><div><b>${esc(x.cavallo)}</b><div class="drv">${esc(x.driver||'')}</div></div><span class="pos">${pos(x.n)}</span></div>`).join('')}</div>
       <div class="picks"><div><label>1° 🥇</label><select id="p1-${c.id}">${opt(p.primo)}</select></div><div><label>2° 🥈</label><select id="p2-${c.id}">${opt(p.secondo)}</select></div><div><label>3° 🥉</label><select id="p3-${c.id}">${opt(p.terzo)}</select></div></div>
+      <div class="row"><div><label>🔄 Riserva</label><select id="pr-${c.id}">${opt(p.riserva)}</select></div><div><label>⏱ Tempo al km del vincitore</label><input id="pt-${c.id}" placeholder="1'12&quot;1" value="${fmtTempo(p.tempo).replace(/"/g,'&quot;')}" inputmode="text"></div></div>
       <div id="m-${c.id}"></div><button class="btn full" onclick="salvaPronostico(${c.id})">${p.id ? 'Aggiorna pronostico' : 'Salva pronostico'}</button>`;
   } else {
-    const tuo = p.primo ? `<p class="muted" style="margin-top:8px">Il tuo pronostico: <b>${[p.primo,p.secondo,p.terzo].filter(Boolean).map(n=>n+' '+esc(nomeCav(c,n))).join(' – ')}</b></p>` : '<p class="muted" style="margin-top:8px">Non hai pronosticato questa corsa.</p>';
-    const arr = s==='fine' ? `<div class="arrivo">${c.arrivo.map((n,i)=>`<span class="a">${i+1}° ${n} ${esc(nomeCav(c,n))}</span>`).join('')}</div>` : '';
-    const pt = s==='fine' && p.primo ? `<div class="punti">+${calcPunti(p, c.arrivo)} punti</div>` : '';
+    const tuo = p.primo ? `<p class="muted" style="margin-top:8px">Il tuo pronostico: <b>${[p.primo,p.secondo,p.terzo].filter(Boolean).map(n=>n+' '+esc(nomeCav(c,n))).join(' – ')}</b>${p.riserva?` · riserva <b>${p.riserva} ${esc(nomeCav(c,p.riserva))}</b>`:''}${p.tempo?` · tempo <b>${fmtTempo(p.tempo)}</b>`:''}</p>` : '<p class="muted" style="margin-top:8px">Non hai pronosticato questa corsa.</p>';
+    const extra = s==='fine' ? `<p class="muted" style="margin-top:6px">${c.tempo_ufficiale?`⏱ Tempo ufficiale <b>${fmtTempo(c.tempo_ufficiale)}</b>`:''}${c.ritirati?.length?` · Ritirati: ${c.ritirati.join(', ')}`:''}${c.rotture?.length?` · Squalificati per rottura: ${c.rotture.join(', ')}`:''}</p>` : '';
+    const arr = s==='fine' ? `<div class="arrivo">${c.arrivo.map((n,i)=>`<span class="a">${i+1}° ${n} ${esc(nomeCav(c,n))}</span>`).join('')}</div>${extra}` : '';
+    const pt = s==='fine' && p.primo ? (v => `<div class="punti">${v>=0?'+':''}${v} punti</div>`)(calcPunti(p, c)) : '';
     corpo = arr + tuo + pt + `<button class="btn-ghost full" style="margin-top:10px" onclick="vediPronostici(${c.id})">Pronostici di tutti</button><div id="tutti-${c.id}"></div>`;
   }
   return `<div class="card"><div class="corsa-top"><div><h3>${c.numero}ª corsa · ${esc(c.ippodromo)}</h3><p class="muted">${esc(c.nome)} · ${fmtData(c.orario)} ore ${fmtOra(c.orario)}</p></div><span class="badge b-${s}">${lab}</span></div>${corpo}</div>`;
 }
-function calcPunti(p, a){
-  if (!a?.length) return 0; let t = 0; const top = a.slice(0,3);
-  [[p.primo,0,5],[p.secondo,1,3],[p.terzo,2,2]].forEach(([n,i,v]) => { if (n==null) return; if (n==a[i]) t+=v; else if (top.includes(+n)) t+=1; });
-  if (p.primo==a[0] && p.secondo==a[1] && p.terzo==a[2]) t+=5; return t;
+function calcPunti(p, c){
+  const a = c.arrivo; if (!a?.length) return 0; let t = 0; const top = a.slice(0,3), rot = c.rotture || [], v = [10,7,5];
+  effettivi(p, c).forEach((n,i) => { if (n==null) return; if (rot.includes(n)) t-=3; else if (n==a[i]) t+=v[i]; else if (top.includes(n)) t+=3; });
+  return t;
 }
 async function salvaPronostico(id){
   const v = k => { const x = $(`${k}-${id}`).value; return x ? +x : null; };
-  const primo = v('p1'), secondo = v('p2'), terzo = v('p3');
-  if (!primo) return msg('m-'+id, 'Scegli almeno il 1° classificato');
-  const scelti = [primo,secondo,terzo].filter(Boolean);
-  if (new Set(scelti).size !== scelti.length) return msg('m-'+id, 'Non puoi scegliere lo stesso cavallo due volte');
-  const { data, error } = await sb.from('pronostici').upsert({ user_id: me.id, corsa_id: id, primo, secondo, terzo, updated_at: new Date().toISOString() }, { onConflict: 'user_id,corsa_id' }).select().single();
+  const primo = v('p1'), secondo = v('p2'), terzo = v('p3'), riserva = v('pr');
+  if (!primo || !secondo || !terzo) return msg('m-'+id, 'Scegli 1°, 2° e 3° classificato');
+  const scelti = [primo,secondo,terzo,riserva].filter(Boolean);
+  if (new Set(scelti).size !== scelti.length) return msg('m-'+id, 'Non puoi scegliere lo stesso cavallo due volte (riserva compresa)');
+  const tempo = parseTempo($('pt-'+id).value);
+  if (tempo == null) return msg('m-'+id, 'Scrivi il tempo al km così: 1\'12"1 (oppure 1.12.1)');
+  const { data, error } = await sb.from('pronostici').upsert({ user_id: me.id, corsa_id: id, primo, secondo, terzo, riserva, tempo, updated_at: new Date().toISOString() }, { onConflict: 'user_id,corsa_id' }).select().single();
   if (error) return msg('m-'+id, error.message.includes('row-level') ? 'Corsa chiusa: non puoi più pronosticare' : error.message);
   miei[id] = data; msg('m-'+id, '✅ Pronostico salvato!', 'ok');
 }
 async function vediPronostici(id){
   const { data } = await sb.from('pronostici_punti').select('*').eq('corsa_id', id).order('punti', { ascending:false });
   const c = corse.find(x => x.id===id);
-  $('tutti-'+id).innerHTML = data?.length ? `<table style="margin-top:10px"><tr><th>Utente</th><th>Pronostico</th><th class="n">Pt</th></tr>${data.map(r=>`<tr class="${r.user_id===me.id?'me':''}"><td>${esc(r.username)}</td><td>${[r.primo,r.secondo,r.terzo].filter(Boolean).join(' - ')}</td><td class="n">${c.arrivo?.length?r.punti:'-'}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin-top:8px">Nessun pronostico.</p>';
+  if (data) data.sort((a,b) => b.punti-a.punti || (a.diff_tempo??1e9)-(b.diff_tempo??1e9));
+  $('tutti-'+id).innerHTML = data?.length ? `<table style="margin-top:10px"><tr><th>Utente</th><th>Pronostico</th><th>Tempo</th><th class="n">Pt</th></tr>${data.map(r=>`<tr class="${r.user_id===me.id?'me':''}"><td>${esc(r.username)}</td><td>${[r.primo,r.secondo,r.terzo].filter(Boolean).join(' - ')}${r.riserva?` <span class="muted">(ris. ${r.riserva})</span>`:''}</td><td>${fmtTempo(r.tempo)}</td><td class="n">${c.arrivo?.length?r.punti:'-'}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin-top:8px">Nessun pronostico.</p>';
 }
 
 // ---------- CLASSIFICA ----------
 async function renderClassifica(){
-  const { data } = await sb.from('classifica').select('*').order('punti', { ascending:false }).order('vincenti', { ascending:false });
+  const { data } = await sb.from('classifica').select('*').order('punti', { ascending:false }).order('diff_tempo', { ascending:true });
   const opts = giornate.map(g => `<option value="${g.id}">${esc(g.nome)}</option>`).join('');
   $('pg-classifica').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">🏆 Classifica</h2>
     <select id="clSel" onchange="cambiaClassifica()"><option value="">Generale</option>${opts}</select>
@@ -257,27 +276,31 @@ async function renderClassifica(){
 }
 function tabellaCl(rows){
   if (!rows.length) return '<p class="muted">Ancora nessun punteggio.</p>';
-  return `<table><tr><th>#</th><th>Utente</th><th class="n">Vinc.</th><th class="n">Punti</th></tr>${rows.map((r,i)=>`<tr class="${r.user_id===me.id?'me':''}"><td class="${i===0?'pos1':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</td><td>${esc(r.username)}</td><td class="n">${r.vincenti}</td><td class="n">${r.punti}</td></tr>`).join('')}</table>`;
+  return `<table><tr><th>#</th><th>Utente</th><th class="n">Vinc.</th><th class="n">Scarto ⏱</th><th class="n">Punti</th></tr>${rows.map((r,i)=>`<tr class="${r.user_id===me.id?'me':''}"><td class="${i===0?'pos1':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</td><td>${esc(r.username)}</td><td class="n">${r.vincenti}</td><td class="n">${fmtDiff(r.diff_tempo)}</td><td class="n">${r.punti}</td></tr>`).join('')}</table>
+  <p class="muted" style="margin-top:8px">A pari punti vince chi ha lo scarto più basso dal tempo ufficiale.</p>`;
 }
 async function cambiaClassifica(){
   const g = $('clSel').value;
-  if (!g) { const { data } = await sb.from('classifica').select('*').order('punti',{ascending:false}).order('vincenti',{ascending:false}); $('clTab').innerHTML = tabellaCl(data||[]); return; }
+  if (!g) { const { data } = await sb.from('classifica').select('*').order('punti',{ascending:false}).order('diff_tempo',{ascending:true}); $('clTab').innerHTML = tabellaCl(data||[]); return; }
   const { data } = await sb.from('pronostici_punti').select('*').eq('giornata_id', g);
   const tot = {};
-  (data||[]).forEach(r => { const c = corse.find(x=>x.id===r.corsa_id); if (!c?.arrivo?.length) return; tot[r.user_id] ??= { user_id:r.user_id, username:r.username, punti:0, vincenti:0 }; tot[r.user_id].punti += r.punti; if (r.primo==c.arrivo[0]) tot[r.user_id].vincenti++; });
-  $('clTab').innerHTML = tabellaCl(Object.values(tot).sort((a,b)=>b.punti-a.punti||b.vincenti-a.vincenti));
+  (data||[]).forEach(r => { const c = corse.find(x=>x.id===r.corsa_id); if (!c?.arrivo?.length) return; tot[r.user_id] ??= { user_id:r.user_id, username:r.username, punti:0, vincenti:0, diff_tempo:0 }; tot[r.user_id].punti += r.punti; tot[r.user_id].diff_tempo += r.diff_tempo ?? 0; if (r.primo==c.arrivo[0]) tot[r.user_id].vincenti++; });
+  $('clTab').innerHTML = tabellaCl(Object.values(tot).sort((a,b)=>b.punti-a.punti||a.diff_tempo-b.diff_tempo));
 }
 
 // ---------- REGOLE ----------
 function renderRegole(){
-  $('pg-regole').innerHTML = `<div class="card regole"><h2 style="color:var(--verde);font-size:28px">📜 Come si gioca</h2>
-  <ul><li>Si gioca sulle <b>corse reali di trotto</b> degli ippodromi italiani.</li>
-  <li>Per ogni corsa pronostichi il <b>1°, 2° e 3° arrivato</b> (il 1° è obbligatorio).</li>
-  <li>Puoi cambiare il pronostico fino all'orario di partenza: poi la corsa si chiude.</li>
-  <li>I pronostici degli altri si vedono solo a corsa partita.</li></ul>
-  <h3 style="margin-top:14px;font-size:22px;color:var(--verde)">Punteggio</h3>
-  <table><tr><td>1° indovinato al posto giusto</td><td class="n">5</td></tr><tr><td>2° indovinato al posto giusto</td><td class="n">3</td></tr><tr><td>3° indovinato al posto giusto</td><td class="n">2</td></tr><tr><td>Cavallo nei primi 3 ma posto sbagliato</td><td class="n">1</td></tr><tr><td>Tris esatta in ordine (bonus)</td><td class="n">+5</td></tr></table>
-  <p class="muted" style="margin-top:10px">Massimo 15 punti a corsa. A pari punti in classifica conta chi ha indovinato più vincenti.</p></div>`;
+  const h = t => `<h3 style="margin-top:16px;font-size:22px;color:var(--verde);border-bottom:2px solid var(--oro);padding-bottom:4px">${t}</h3>`;
+  $('pg-regole').innerHTML = `<div class="card regole">
+  <div style="text-align:center"><h2 style="color:var(--verde);font-size:40px;line-height:1">T10</h2><h2 style="color:var(--oro);font-size:28px">CHAMPIONS LEAGUE</h2><p class="muted">Regolamento Ufficiale FantaTrotto • Stagione 2026/2027</p></div>
+  <table style="margin-top:14px"><tr><th>Risultato</th><th class="n">Punti</th></tr>
+  <tr><td>1° esatto</td><td class="n">+10</td></tr><tr><td>2° esatto</td><td class="n">+7</td></tr><tr><td>3° esatto</td><td class="n">+5</td></tr>
+  <tr><td>Piazzato fuori ordine</td><td class="n">+3</td></tr><tr><td>Bonus Tempo (solo Scontri Diretti)</td><td class="n">+3</td></tr><tr><td>Squalifica per rottura</td><td class="n" style="color:var(--rosso)">-3</td></tr></table>
+  ${h('1. Punteggio piazzamento')}<ul><li>1° esatto = <b>10 punti</b> | 2° esatto = <b>7 punti</b> | 3° esatto = <b>5 punti</b></li><li>Piazzato fuori ordine (es. dai 3° e arriva 1°) = <b>3 punti</b></li></ul>
+  ${h('2. Tempo al km')}<ul><li><b>Bonus +3: SOLO SCONTRI DIRETTI</b> – Chi si avvicina di più al tempo reale vince il bonus.</li><li><b>Spareggio (SEMPRE):</b> a parità di punteggio, vince chi è più vicino al tempo ufficiale.</li></ul>
+  ${h('3. Riserva')}<ul><li>Se un titolare è ritirato, entra la riserva al suo posto.</li><li>La riserva prende i punti normali.</li></ul>
+  ${h('4. Squalifica per rottura')}<ul><li>Cavallo squalificato per rottura di camminata = <b>-3 punti</b></li></ul>
+  ${h('Come si gioca')}<ul><li>Per ogni corsa reale scegli 1°, 2°, 3°, una riserva e il tempo al km del vincitore (es. 1'12"1).</li><li>Puoi cambiare il pronostico fino all'orario di partenza; i pronostici degli altri si vedono a corsa partita.</li></ul></div>`;
 }
 
 // ---------- ADMIN ----------
@@ -301,6 +324,9 @@ function renderAdmin(){
   <div class="card"><h3 style="font-size:22px">3. Inserisci arrivo ufficiale</h3>
     ${daChiudere.length ? daChiudere.map(c => `<div style="border-top:1px solid #eee;padding-top:10px;margin-top:10px"><b>${c.numero}ª ${esc(c.ippodromo)}</b> <span class="muted">${esc(c.nome)}</span>
       <div class="picks" style="margin-top:6px">${[1,2,3].map(k=>`<select id="a${k}-${c.id}"><option value="">${k}°</option>${c.partenti.map(x=>`<option value="${x.n}">${x.n} ${esc(x.cavallo)}</option>`).join('')}</select>`).join('')}</div>
+      <label>⏱ Tempo al km ufficiale del vincitore</label><input id="at-${c.id}" placeholder="1'12&quot;1">
+      <label>Ritirati (non partiti)</label><div class="checks">${c.partenti.map(x=>`<label class="chk"><input type="checkbox" class="rit-${c.id}" value="${x.n}" ${(c.ritirati||[]).includes(x.n)?'checked':''}> ${x.n} ${esc(x.cavallo)}</label>`).join('')}</div>
+      <label>Squalificati per rottura</label><div class="checks">${c.partenti.map(x=>`<label class="chk"><input type="checkbox" class="rot-${c.id}" value="${x.n}" ${(c.rotture||[]).includes(x.n)?'checked':''}> ${x.n} ${esc(x.cavallo)}</label>`).join('')}</div>
       <button class="btn-oro full" onclick="salvaArrivo(${c.id})">Conferma arrivo</button></div>`).join('') : '<p class="muted">Nessuna corsa in attesa di arrivo.</p>'}</div>
   <div class="card"><h3 style="font-size:22px">Gestisci corse</h3>
     ${corse.length ? corse.slice().reverse().map(c => `<div class="row" style="border-bottom:1px solid #eee;padding:8px 0"><div style="flex:3"><b>${c.numero}ª ${esc(c.ippodromo)}</b><div class="muted">${fmtData(c.orario)} ${fmtOra(c.orario)} · ${c.arrivo?.length?'arrivo: '+c.arrivo.join('-'):'senza arrivo'}</div></div>
@@ -332,10 +358,14 @@ async function nuovaCorsa(){
 async function salvaArrivo(id){
   const a = [1,2,3].map(k => +$(`a${k}-${id}`).value).filter(Boolean);
   if (a.length < 3 || new Set(a).size !== 3) return alert('Scegli 1°, 2° e 3° (tutti diversi)');
-  const { error } = await sb.from('corse').update({ arrivo: a }).eq('id', id);
+  const tempo_ufficiale = parseTempo($('at-'+id).value);
+  if (tempo_ufficiale == null) return alert('Scrivi il tempo ufficiale così: 1\'12"1');
+  const ritirati = [...document.querySelectorAll('.rit-'+id+':checked')].map(x=>+x.value);
+  const rotture = [...document.querySelectorAll('.rot-'+id+':checked')].map(x=>+x.value);
+  const { error } = await sb.from('corse').update({ arrivo: a, tempo_ufficiale, ritirati, rotture }).eq('id', id);
   if (error) return alert(error.message); await carica(); renderAdmin();
 }
-async function annullaArrivo(id){ if (!confirm('Annullare l\'arrivo di questa corsa?')) return; await sb.from('corse').update({ arrivo: null }).eq('id', id); await carica(); renderAdmin(); }
+async function annullaArrivo(id){ if (!confirm('Annullare l\'arrivo di questa corsa?')) return; await sb.from('corse').update({ arrivo: null, tempo_ufficiale: null, ritirati: [], rotture: [] }).eq('id', id); await carica(); renderAdmin(); }
 async function eliminaCorsa(id){ if (!confirm('Eliminare la corsa e tutti i suoi pronostici?')) return; await sb.from('corse').delete().eq('id', id); await carica(); renderAdmin(); }
 </script>
 </body>
