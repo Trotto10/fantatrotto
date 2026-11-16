@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FantaTrotto</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐎</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--verde:#0f3d2e;--verde2:#16523e;--oro:#d4a537;--crema:#f6f1e4;--testo:#1c1c1c;--grigio:#6b7280;--rosso:#b3261e;--card:#fff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,system-ui,sans-serif;background:var(--crema);color:var(--testo);min-height:100vh;padding-bottom:80px}
+h1,h2,h3{font-family:'Bebas Neue',sans-serif;letter-spacing:1px;font-weight:400}
+button{font:inherit;cursor:pointer;border:0;border-radius:10px;padding:11px 16px;font-weight:600}
+input,select,textarea{font:inherit;width:100%;padding:11px;border:1px solid #d1d5db;border-radius:10px;background:#fff;margin-bottom:10px}
+textarea{min-height:140px;font-family:monospace;font-size:14px}
+label{font-size:13px;font-weight:600;color:var(--grigio);display:block;margin-bottom:4px}
+.btn{background:var(--verde);color:#fff}.btn-oro{background:var(--oro);color:var(--verde)}.btn-ghost{background:transparent;color:var(--verde);border:1px solid var(--verde)}.btn-rosso{background:var(--rosso);color:#fff}
+.full{width:100%}.hidden{display:none!important}
+.wrap{max-width:720px;margin:0 auto;padding:16px}
+.card{background:var(--card);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.muted{color:var(--grigio);font-size:14px}
+.row{display:flex;gap:10px;align-items:center}.row>*{flex:1}
+.msg{padding:10px;border-radius:10px;margin-bottom:10px;font-size:14px}.msg.err{background:#fde8e6;color:var(--rosso)}.msg.ok{background:#e3f4ea;color:var(--verde)}
+/* AUTH */
+#auth{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(160deg,var(--verde),#08241b)}
+.auth-box{background:#fff;border-radius:18px;padding:26px;width:100%;max-width:400px}
+.logo{text-align:center;margin-bottom:18px}.logo h1{font-size:46px;color:var(--verde);line-height:1}.logo h1 span{color:var(--oro)}.logo .horse{font-size:44px}
+.tabs{display:flex;gap:6px;margin-bottom:16px;background:#eef0ec;padding:4px;border-radius:12px}.tabs button{flex:1;background:transparent;color:var(--grigio)}.tabs button.on{background:#fff;color:var(--verde);box-shadow:0 1px 2px rgba(0,0,0,.1)}
+/* HEADER */
+header{background:var(--verde);color:#fff;padding:14px 16px;position:sticky;top:0;z-index:5}
+header .in{max-width:720px;margin:0 auto;display:flex;justify-content:space-between;align-items:center}
+header h1{font-size:30px}header h1 span{color:var(--oro)}
+.user-chip{font-size:13px;background:rgba(255,255,255,.12);padding:6px 10px;border-radius:20px}
+/* NAV */
+nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;display:flex;justify-content:space-around;padding:6px 0 calc(6px + env(safe-area-inset-bottom));z-index:6}
+nav button{background:none;color:var(--grigio);display:flex;flex-direction:column;align-items:center;font-size:11px;padding:6px 8px}
+nav button .i{font-size:22px}nav button.on{color:var(--verde)}
+/* CORSE */
+.giornata-head{display:flex;justify-content:space-between;align-items:baseline;margin:18px 0 8px}.giornata-head h2{font-size:26px;color:var(--verde)}
+.corsa-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px}
+.corsa-top h3{font-size:22px;color:var(--verde)}
+.badge{font-size:12px;font-weight:700;padding:4px 8px;border-radius:8px;white-space:nowrap}
+.b-aperta{background:#e3f4ea;color:var(--verde)}.b-chiusa{background:#fff4d6;color:#8a6200}.b-fine{background:#e5e7eb;color:#374151}
+.partenti{display:grid;gap:6px;margin:8px 0}
+.partente{display:flex;align-items:center;gap:10px;padding:8px;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}
+.num{width:30px;height:30px;border-radius:8px;background:var(--verde);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;flex:0 0 30px}
+.partente .drv{color:var(--grigio);font-size:12px}
+.partente .pos{margin-left:auto;font-weight:800;color:var(--oro)}
+.picks{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.arrivo{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.arrivo .a{background:var(--verde);color:#fff;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:600}
+.arrivo .a:first-child{background:var(--oro);color:var(--verde)}
+.punti{font-family:'Bebas Neue';font-size:28px;color:var(--oro)}
+/* CLASSIFICA */
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:10px 6px;text-align:left;border-bottom:1px solid #eee}th{font-size:12px;color:var(--grigio);text-transform:uppercase}
+td.n{text-align:right;font-weight:700}tr.me{background:#fff8e6}
+.pos1{color:var(--oro);font-weight:800}
+.hero{background:linear-gradient(135deg,var(--verde),var(--verde2));color:#fff;border-radius:16px;padding:18px;margin-bottom:14px}
+.hero h2{font-size:30px}.hero .big{font-family:'Bebas Neue';font-size:52px;color:var(--oro);line-height:1}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.stats div{background:rgba(255,255,255,.1);border-radius:10px;padding:8px;text-align:center}.stats b{display:block;font-size:20px}
+.regole li{margin:6px 0 6px 18px;font-size:15px}
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN / REGISTRAZIONE ================= -->
+<section id="auth" class="hidden">
+  <div class="auth-box">
+    <div class="logo"><div class="horse">🐎</div><h1>FANTA<span>TROTTO</span></h1><p class="muted">Il fanta gioco del trotto italiano</p></div>
+    <div class="tabs"><button id="tabLogin" class="on" onclick="setTab('login')">Accedi</button><button id="tabReg" onclick="setTab('reg')">Registrati</button></div>
+    <div id="authMsg"></div>
+    <form id="formLogin" onsubmit="login(event)">
+      <label>Email</label><input type="email" id="lEmail" required autocomplete="email">
+      <label>Password</label><input type="password" id="lPass" required autocomplete="current-password">
+      <button class="btn full" type="submit">Entra</button>
+      <p style="text-align:center;margin-top:12px"><a href="#" onclick="resetPass(event)" class="muted">Password dimenticata?</a></p>
+    </form>
+    <form id="formReg" class="hidden" onsubmit="register(event)">
+      <label>Nome utente</label><input id="rUser" required minlength="3" maxlength="20" placeholder="es. Varenne93">
+      <label>Email</label><input type="email" id="rEmail" required autocomplete="email">
+      <label>Password (min 6 caratteri)</label><input type="password" id="rPass" required minlength="6" autocomplete="new-password">
+      <button class="btn-oro full" type="submit">Crea account</button>
+    </form>
+  </div>
+</section>
+
+<!-- ================= APP ================= -->
+<section id="app" class="hidden">
+  <header><div class="in"><h1>FANTA<span>TROTTO</span></h1><span class="user-chip" id="chip"></span></div></header>
+  <main class="wrap">
+    <div id="pg-home"></div>
+    <div id="pg-corse" class="hidden"></div>
+    <div id="pg-classifica" class="hidden"></div>
+    <div id="pg-regole" class="hidden"></div>
+    <div id="pg-admin" class="hidden"></div>
+  </main>
+  <nav id="nav">
+    <button data-p="home" class="on" onclick="go('home')"><span class="i">🏠</span>Home</button>
+    <button data-p="corse" onclick="go('corse')"><span class="i">🏇</span>Corse</button>
+    <button data-p="classifica" onclick="go('classifica')"><span class="i">🏆</span>Classifica</button>
+    <button data-p="regole" onclick="go('regole')"><span class="i">📜</span>Regole</button>
+    <button data-p="admin" id="navAdmin" class="hidden" onclick="go('admin')"><span class="i">⚙️</span>Admin</button>
+  </nav>
+</section>
+
+<script>
+// ===== CONFIGURAZIONE: incolla qui i tuoi dati Supabase =====
+const SUPABASE_URL = 'https://bxzhwhskazlyozavirgd.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_FvtIvZ2hql9LIZcaAEVvig_9km_GD8y';
+// ============================================================
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let me = null, profilo = null, giornate = [], corse = [], miei = {};
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtData = d => new Date(d).toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'});
+const fmtOra = d => new Date(d).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+const stato = c => c.arrivo?.length ? 'fine' : (new Date(c.orario) <= new Date() ? 'chiusa' : 'aperta');
+const nomeCav = (c,n) => (c.partenti.find(p => p.n == n) || {}).cavallo || ('n. ' + n);
+
+function msg(el, testo, tipo='err'){ $(el).innerHTML = testo ? `<div class="msg ${tipo}">${esc(testo)}</div>` : ''; }
+
+// ---------- AUTH ----------
+function setTab(t){
+  $('tabLogin').classList.toggle('on', t==='login'); $('tabReg').classList.toggle('on', t==='reg');
+  $('formLogin').classList.toggle('hidden', t!=='login'); $('formReg').classList.toggle('hidden', t!=='reg'); msg('authMsg','');
+}
+async function login(e){
+  e.preventDefault(); msg('authMsg','');
+  const { error } = await sb.auth.signInWithPassword({ email: $('lEmail').value.trim(), password: $('lPass').value });
+  if (error) msg('authMsg', error.message.includes('Invalid') ? 'Email o password errati' : error.message.includes('confirm') ? 'Conferma prima la tua email (controlla la posta)' : error.message);
+}
+async function register(e){
+  e.preventDefault(); msg('authMsg','');
+  const username = $('rUser').value.trim();
+  const { data: libero } = await sb.rpc('username_libero', { u: username });
+  if (libero === false) return msg('authMsg','Nome utente già preso');
+  const { data, error } = await sb.auth.signUp({ email: $('rEmail').value.trim(), password: $('rPass').value, options: { data: { username }, emailRedirectTo: location.origin + location.pathname } });
+  if (error) return msg('authMsg', error.message.includes('registered') ? 'Email già registrata' : error.message);
+  if (!data.session) { setTab('login'); msg('authMsg','Account creato! Controlla la tua email per confermare, poi accedi.','ok'); }
+}
+async function resetPass(e){
+  e.preventDefault();
+  const email = $('lEmail').value.trim();
+  if (!email) return msg('authMsg','Scrivi prima la tua email nel campo sopra');
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  msg('authMsg', error ? error.message : 'Ti abbiamo mandato una email per reimpostare la password', error ? 'err' : 'ok');
+}
+async function logout(){ await sb.auth.signOut(); }
+
+sb.auth.onAuthStateChange(async (ev, session) => {
+  if (ev === 'PASSWORD_RECOVERY') {
+    const np = prompt('Scrivi la nuova password (min 6 caratteri)');
+    if (np) { const { error } = await sb.auth.updateUser({ password: np }); alert(error ? error.message : 'Password aggiornata!'); }
+  }
+  if (session?.user) { if (me?.id !== session.user.id) { me = session.user; await avvia(); } }
+  else { me = null; $('app').classList.add('hidden'); $('auth').classList.remove('hidden'); }
+});
+
+// ---------- DATI ----------
+async function avvia(){
+  $('auth').classList.add('hidden'); $('app').classList.remove('hidden');
+  let { data: p } = await sb.from('profiles').select('*').eq('id', me.id).single();
+  profilo = p || { username: me.email, is_admin: false };
+  $('chip').innerHTML = `👤 ${esc(profilo.username)} · <a href="#" onclick="logout()" style="color:var(--oro)">esci</a>`;
+  $('navAdmin').classList.toggle('hidden', !profilo.is_admin);
+  await carica(); go('home');
+}
+async function carica(){
+  const [g, c, pr] = await Promise.all([
+    sb.from('giornate').select('*').order('data', { ascending: false }),
+    sb.from('corse').select('*').order('orario'),
+    sb.from('pronostici').select('*').eq('user_id', me.id)
+  ]);
+  giornate = g.data || []; corse = c.data || []; miei = {};
+  (pr.data || []).forEach(x => miei[x.corsa_id] = x);
+}
+
+function go(p){
+  ['home','corse','classifica','regole','admin'].forEach(x => $('pg-'+x).classList.toggle('hidden', x!==p));
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.p===p));
+  ({home:renderHome, corse:renderCorse, classifica:renderClassifica, regole:renderRegole, admin:renderAdmin})[p]();
+  scrollTo(0,0);
+}
+
+// ---------- HOME ----------
+async function renderHome(){
+  const { data: cl } = await sb.from('classifica').select('*').order('punti', { ascending:false });
+  const lista = cl || []; const i = lista.findIndex(r => r.user_id === me.id); const mio = lista[i] || { punti:0, corse_giocate:0, vincenti:0 };
+  const prossime = corse.filter(c => stato(c)==='aperta').slice(0,3);
+  const daFare = prossime.filter(c => !miei[c.id]).length;
+  $('pg-home').innerHTML = `
+    <div class="hero"><p>Ciao <b>${esc(profilo.username)}</b></p><div class="big">${mio.punti} PT</div>
+      <p>${i>=0 ? `${i+1}° posto su ${lista.length}` : ''}</p>
+      <div class="stats"><div><b>${mio.corse_giocate}</b>corse</div><div><b>${mio.vincenti}</b>vincenti</div><div><b>${i>=0?i+1:'-'}°</b>posizione</div></div></div>
+    <h2 style="color:var(--verde);font-size:24px;margin:6px 0">Prossime corse ${daFare?`<span class="badge b-chiusa">${daFare} da pronosticare</span>`:''}</h2>
+    ${prossime.length ? prossime.map(cardCorsa).join('') : '<div class="card muted">Nessuna corsa aperta al momento. Torna più tardi!</div>'}
+    <button class="btn full" onclick="go('corse')">Tutte le corse</button>`;
+}
+
+// ---------- CORSE ----------
+function renderCorse(){
+  if (!giornate.length) { $('pg-corse').innerHTML = '<div class="card muted">Ancora nessuna giornata in programma.</div>'; return; }
+  $('pg-corse').innerHTML = giornate.map(g => {
+    const cs = corse.filter(c => c.giornata_id === g.id);
+    return `<div class="giornata-head"><h2>${esc(g.nome)}</h2><span class="muted">${fmtData(g.data)}</span></div>${cs.map(cardCorsa).join('') || '<div class="card muted">Corse in arrivo</div>'}`;
+  }).join('');
+}
+function cardCorsa(c){
+  const s = stato(c), p = miei[c.id] || {};
+  const lab = { aperta:`Chiude ${fmtOra(c.orario)}`, chiusa:'In corso / attesa arrivo', fine:'Arrivo ufficiale' }[s];
+  const pos = n => n==p.primo?'1°':n==p.secondo?'2°':n==p.terzo?'3°':'';
+  let corpo = '';
+  if (s === 'aperta') {
+    const opt = sel => '<option value="">—</option>' + c.partenti.map(x => `<option value="${x.n}" ${sel==x.n?'selected':''}>${x.n} · ${esc(x.cavallo)}</option>`).join('');
+    corpo = `<div class="partenti">${c.partenti.map(x => `<div class="partente"><span class="num">${x.n}</span><div><b>${esc(x.cavallo)}</b><div class="drv">${esc(x.driver||'')}</div></div><span class="pos">${pos(x.n)}</span></div>`).join('')}</div>
+      <div class="picks"><div><label>1° 🥇</label><select id="p1-${c.id}">${opt(p.primo)}</select></div><div><label>2° 🥈</label><select id="p2-${c.id}">${opt(p.secondo)}</select></div><div><label>3° 🥉</label><select id="p3-${c.id}">${opt(p.terzo)}</select></div></div>
+      <div id="m-${c.id}"></div><button class="btn full" onclick="salvaPronostico(${c.id})">${p.id ? 'Aggiorna pronostico' : 'Salva pronostico'}</button>`;
+  } else {
+    const tuo = p.primo ? `<p class="muted" style="margin-top:8px">Il tuo pronostico: <b>${[p.primo,p.secondo,p.terzo].filter(Boolean).map(n=>n+' '+esc(nomeCav(c,n))).join(' – ')}</b></p>` : '<p class="muted" style="margin-top:8px">Non hai pronosticato questa corsa.</p>';
+    const arr = s==='fine' ? `<div class="arrivo">${c.arrivo.map((n,i)=>`<span class="a">${i+1}° ${n} ${esc(nomeCav(c,n))}</span>`).join('')}</div>` : '';
+    const pt = s==='fine' && p.primo ? `<div class="punti">+${calcPunti(p, c.arrivo)} punti</div>` : '';
+    corpo = arr + tuo + pt + `<button class="btn-ghost full" style="margin-top:10px" onclick="vediPronostici(${c.id})">Pronostici di tutti</button><div id="tutti-${c.id}"></div>`;
+  }
+  return `<div class="card"><div class="corsa-top"><div><h3>${c.numero}ª corsa · ${esc(c.ippodromo)}</h3><p class="muted">${esc(c.nome)} · ${fmtData(c.orario)} ore ${fmtOra(c.orario)}</p></div><span class="badge b-${s}">${lab}</span></div>${corpo}</div>`;
+}
+function calcPunti(p, a){
+  if (!a?.length) return 0; let t = 0; const top = a.slice(0,3);
+  [[p.primo,0,5],[p.secondo,1,3],[p.terzo,2,2]].forEach(([n,i,v]) => { if (n==null) return; if (n==a[i]) t+=v; else if (top.includes(+n)) t+=1; });
+  if (p.primo==a[0] && p.secondo==a[1] && p.terzo==a[2]) t+=5; return t;
+}
+async function salvaPronostico(id){
+  const v = k => { const x = $(`${k}-${id}`).value; return x ? +x : null; };
+  const primo = v('p1'), secondo = v('p2'), terzo = v('p3');
+  if (!primo) return msg('m-'+id, 'Scegli almeno il 1° classificato');
+  const scelti = [primo,secondo,terzo].filter(Boolean);
+  if (new Set(scelti).size !== scelti.length) return msg('m-'+id, 'Non puoi scegliere lo stesso cavallo due volte');
+  const { data, error } = await sb.from('pronostici').upsert({ user_id: me.id, corsa_id: id, primo, secondo, terzo, updated_at: new Date().toISOString() }, { onConflict: 'user_id,corsa_id' }).select().single();
+  if (error) return msg('m-'+id, error.message.includes('row-level') ? 'Corsa chiusa: non puoi più pronosticare' : error.message);
+  miei[id] = data; msg('m-'+id, '✅ Pronostico salvato!', 'ok');
+}
+async function vediPronostici(id){
+  const { data } = await sb.from('pronostici_punti').select('*').eq('corsa_id', id).order('punti', { ascending:false });
+  const c = corse.find(x => x.id===id);
+  $('tutti-'+id).innerHTML = data?.length ? `<table style="margin-top:10px"><tr><th>Utente</th><th>Pronostico</th><th class="n">Pt</th></tr>${data.map(r=>`<tr class="${r.user_id===me.id?'me':''}"><td>${esc(r.username)}</td><td>${[r.primo,r.secondo,r.terzo].filter(Boolean).join(' - ')}</td><td class="n">${c.arrivo?.length?r.punti:'-'}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin-top:8px">Nessun pronostico.</p>';
+}
+
+// ---------- CLASSIFICA ----------
+async function renderClassifica(){
+  const { data } = await sb.from('classifica').select('*').order('punti', { ascending:false }).order('vincenti', { ascending:false });
+  const opts = giornate.map(g => `<option value="${g.id}">${esc(g.nome)}</option>`).join('');
+  $('pg-classifica').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">🏆 Classifica</h2>
+    <select id="clSel" onchange="cambiaClassifica()"><option value="">Generale</option>${opts}</select>
+    <div class="card" id="clTab">${tabellaCl(data||[])}</div>`;
+}
+function tabellaCl(rows){
+  if (!rows.length) return '<p class="muted">Ancora nessun punteggio.</p>';
+  return `<table><tr><th>#</th><th>Utente</th><th class="n">Vinc.</th><th class="n">Punti</th></tr>${rows.map((r,i)=>`<tr class="${r.user_id===me.id?'me':''}"><td class="${i===0?'pos1':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</td><td>${esc(r.username)}</td><td class="n">${r.vincenti}</td><td class="n">${r.punti}</td></tr>`).join('')}</table>`;
+}
+async function cambiaClassifica(){
+  const g = $('clSel').value;
+  if (!g) { const { data } = await sb.from('classifica').select('*').order('punti',{ascending:false}).order('vincenti',{ascending:false}); $('clTab').innerHTML = tabellaCl(data||[]); return; }
+  const { data } = await sb.from('pronostici_punti').select('*').eq('giornata_id', g);
+  const tot = {};
+  (data||[]).forEach(r => { const c = corse.find(x=>x.id===r.corsa_id); if (!c?.arrivo?.length) return; tot[r.user_id] ??= { user_id:r.user_id, username:r.username, punti:0, vincenti:0 }; tot[r.user_id].punti += r.punti; if (r.primo==c.arrivo[0]) tot[r.user_id].vincenti++; });
+  $('clTab').innerHTML = tabellaCl(Object.values(tot).sort((a,b)=>b.punti-a.punti||b.vincenti-a.vincenti));
+}
+
+// ---------- REGOLE ----------
+function renderRegole(){
+  $('pg-regole').innerHTML = `<div class="card regole"><h2 style="color:var(--verde);font-size:28px">📜 Come si gioca</h2>
+  <ul><li>Si gioca sulle <b>corse reali di trotto</b> degli ippodromi italiani.</li>
+  <li>Per ogni corsa pronostichi il <b>1°, 2° e 3° arrivato</b> (il 1° è obbligatorio).</li>
+  <li>Puoi cambiare il pronostico fino all'orario di partenza: poi la corsa si chiude.</li>
+  <li>I pronostici degli altri si vedono solo a corsa partita.</li></ul>
+  <h3 style="margin-top:14px;font-size:22px;color:var(--verde)">Punteggio</h3>
+  <table><tr><td>1° indovinato al posto giusto</td><td class="n">5</td></tr><tr><td>2° indovinato al posto giusto</td><td class="n">3</td></tr><tr><td>3° indovinato al posto giusto</td><td class="n">2</td></tr><tr><td>Cavallo nei primi 3 ma posto sbagliato</td><td class="n">1</td></tr><tr><td>Tris esatta in ordine (bonus)</td><td class="n">+5</td></tr></table>
+  <p class="muted" style="margin-top:10px">Massimo 15 punti a corsa. A pari punti in classifica conta chi ha indovinato più vincenti.</p></div>`;
+}
+
+// ---------- ADMIN ----------
+function renderAdmin(){
+  if (!profilo.is_admin) return;
+  const optG = giornate.map(g => `<option value="${g.id}">${esc(g.nome)} (${fmtData(g.data)})</option>`).join('');
+  const daChiudere = corse.filter(c => !c.arrivo?.length && new Date(c.orario) <= new Date());
+  $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Pannello commissario</h2>
+  <div class="card"><h3 style="font-size:22px">1. Nuova giornata</h3>
+    <label>Nome</label><input id="gNome" placeholder="es. Giornata 1 - Domenica di trotto">
+    <label>Data</label><input type="date" id="gData">
+    <div id="gMsg"></div><button class="btn full" onclick="nuovaGiornata()">Crea giornata</button></div>
+  <div class="card"><h3 style="font-size:22px">2. Aggiungi corsa reale</h3>
+    <label>Giornata</label><select id="cG">${optG || '<option value="">Crea prima una giornata</option>'}</select>
+    <div class="row"><div><label>Ippodromo</label><input id="cIpp" placeholder="es. San Siro"></div><div style="flex:0 0 90px"><label>N° corsa</label><input type="number" id="cNum" value="1" min="1"></div></div>
+    <label>Nome premio</label><input id="cNome" placeholder="es. Premio Gaida - Corsa Tris">
+    <label>Data e ora di partenza (chiusura pronostici)</label><input type="datetime-local" id="cOra">
+    <label>Partenti: una riga per cavallo → numero cavallo - driver</label>
+    <textarea id="cPart" placeholder="1 Varenne - G. Pellegrini&#10;2 Face Time Bourbon - B. Goop&#10;3 Vivid Wise As - M. Smorgon"></textarea>
+    <div id="cMsg"></div><button class="btn full" onclick="nuovaCorsa()">Aggiungi corsa</button></div>
+  <div class="card"><h3 style="font-size:22px">3. Inserisci arrivo ufficiale</h3>
+    ${daChiudere.length ? daChiudere.map(c => `<div style="border-top:1px solid #eee;padding-top:10px;margin-top:10px"><b>${c.numero}ª ${esc(c.ippodromo)}</b> <span class="muted">${esc(c.nome)}</span>
+      <div class="picks" style="margin-top:6px">${[1,2,3].map(k=>`<select id="a${k}-${c.id}"><option value="">${k}°</option>${c.partenti.map(x=>`<option value="${x.n}">${x.n} ${esc(x.cavallo)}</option>`).join('')}</select>`).join('')}</div>
+      <button class="btn-oro full" onclick="salvaArrivo(${c.id})">Conferma arrivo</button></div>`).join('') : '<p class="muted">Nessuna corsa in attesa di arrivo.</p>'}</div>
+  <div class="card"><h3 style="font-size:22px">Gestisci corse</h3>
+    ${corse.length ? corse.slice().reverse().map(c => `<div class="row" style="border-bottom:1px solid #eee;padding:8px 0"><div style="flex:3"><b>${c.numero}ª ${esc(c.ippodromo)}</b><div class="muted">${fmtData(c.orario)} ${fmtOra(c.orario)} · ${c.arrivo?.length?'arrivo: '+c.arrivo.join('-'):'senza arrivo'}</div></div>
+      ${c.arrivo?.length?`<button class="btn-ghost" style="flex:0" onclick="annullaArrivo(${c.id})">↺</button>`:''}<button class="btn-rosso" style="flex:0" onclick="eliminaCorsa(${c.id})">🗑</button></div>`).join('') : '<p class="muted">Nessuna corsa.</p>'}</div>`;
+}
+async function nuovaGiornata(){
+  const nome = $('gNome').value.trim(), data = $('gData').value;
+  if (!nome || !data) return msg('gMsg','Compila nome e data');
+  const { error } = await sb.from('giornate').insert({ nome, data });
+  if (error) return msg('gMsg', error.message);
+  await carica(); renderAdmin(); msg('gMsg','Giornata creata ✅','ok');
+}
+function leggiPartenti(txt){
+  return txt.split('\n').map(r => r.trim()).filter(Boolean).map(r => {
+    const m = r.match(/^(\d+)[\s.)\-]+(.+)$/); if (!m) return null;
+    const [cav, ...drv] = m[2].split(/\s+-\s+|\s+–\s+/);
+    return { n: +m[1], cavallo: cav.trim(), driver: drv.join(' - ').trim() };
+  }).filter(Boolean);
+}
+async function nuovaCorsa(){
+  const partenti = leggiPartenti($('cPart').value);
+  const g = $('cG').value, ora = $('cOra').value, ipp = $('cIpp').value.trim();
+  if (!g || !ora || !ipp) return msg('cMsg','Compila giornata, ippodromo e orario');
+  if (partenti.length < 2) return msg('cMsg','Inserisci almeno 2 partenti (formato: 1 Nome cavallo - Driver)');
+  const { error } = await sb.from('corse').insert({ giornata_id: +g, ippodromo: ipp, numero: +$('cNum').value || 1, nome: $('cNome').value.trim(), orario: new Date(ora).toISOString(), partenti });
+  if (error) return msg('cMsg', error.message);
+  await carica(); renderAdmin(); msg('cMsg', `Corsa aggiunta con ${partenti.length} partenti ✅`, 'ok');
+}
+async function salvaArrivo(id){
+  const a = [1,2,3].map(k => +$(`a${k}-${id}`).value).filter(Boolean);
+  if (a.length < 3 || new Set(a).size !== 3) return alert('Scegli 1°, 2° e 3° (tutti diversi)');
+  const { error } = await sb.from('corse').update({ arrivo: a }).eq('id', id);
+  if (error) return alert(error.message); await carica(); renderAdmin();
+}
+async function annullaArrivo(id){ if (!confirm('Annullare l\'arrivo di questa corsa?')) return; await sb.from('corse').update({ arrivo: null }).eq('id', id); await carica(); renderAdmin(); }
+async function eliminaCorsa(id){ if (!confirm('Eliminare la corsa e tutti i suoi pronostici?')) return; await sb.from('corse').delete().eq('id', id); await carica(); renderAdmin(); }
+</script>
+</body>
+</html>
