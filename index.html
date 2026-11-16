@@ -267,7 +267,7 @@ async function vediPronostici(id){
   const { data } = await sb.from('pronostici_punti').select('*').eq('corsa_id', id).order('punti', { ascending:false });
   const c = corse.find(x => x.id===id);
   if (data) data.sort((a,b) => b.punti-a.punti || (a.diff_tempo??1e9)-(b.diff_tempo??1e9));
-  $('tutti-'+id).innerHTML = data?.length ? `<table style="margin-top:10px"><tr><th>Utente</th><th>Pronostico</th><th>Tempo</th><th class="n">Pt</th></tr>${data.map(r=>`<tr class="${r.user_id===me.id?'me':''}"><td>${esc(r.username)}</td><td>${[r.primo,r.secondo,r.terzo].filter(Boolean).join(' - ')}${r.riserva?` <span class="muted">(ris. ${r.riserva})</span>`:''}</td><td>${fmtTempo(r.tempo)}</td><td class="n">${c.arrivo?.length?r.punti:'-'}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin-top:8px">Nessun pronostico.</p>';
+  $('tutti-'+id).innerHTML = data?.length ? `<table style="margin-top:10px"><tr><th>Utente</th><th>Pronostico</th><th>Tempo</th><th class="n">Pt</th></tr>${data.map(r=>`<tr class="${r.user_id===me.id?'me':''}"><td>${esc(r.username)}</td><td>${[r.primo,r.secondo,r.terzo].filter(Boolean).join(' - ')}${r.riserva?` <span class="muted">(ris. ${r.riserva})</span>`:''}</td><td>${fmtTempo(r.tempo)}${r.updated_at?`<div class="muted" style="font-size:11px">${new Date(r.updated_at).toLocaleString("it-IT",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}</div>`:""}</td><td class="n">${c.arrivo?.length?r.punti:'-'}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin-top:8px">Nessun pronostico.</p>';
 }
 
 // ---------- CLASSIFICA ----------
@@ -314,7 +314,7 @@ function renderRegole(){
   <tr><td>Punteggio piazzamento, riserva e rottura</td><td class="n">come in classifica</td></tr>
   <tr><td>Bonus Tempo al km</td><td class="n">+3</td></tr></table>
   ${h('1. Bonus tempo al km')}<ul><li><b>Bonus +3:</b> nello scontro diretto, chi si avvicina di più al tempo reale vince il bonus.</li></ul>
-  ${h('2. Spareggio')}<ul><li>A parità di punteggio vince chi è più vicino al tempo ufficiale.</li></ul></div>`;
+  ${h('2. Spareggio')}<ul><li>A parità di punteggio vince chi è più vicino al tempo ufficiale.</li><li>Se i due utenti sono alla <b>stessa distanza</b> dal tempo ufficiale (es. uno 1 decimo in meno e l'altro 1 decimo in più) o hanno messo lo stesso tempo, vince <b>chi ha inserito il pronostico per primo</b>.</li><li>Vale l'orario dell'ultimo salvataggio: chi modifica il pronostico prende il nuovo orario.</li></ul></div>`;
 }
 
 // ---------- ADMIN ----------
