@@ -122,7 +122,7 @@ const LOGO = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBAUEBAY
 document.querySelectorAll('.logoT10').forEach(i => i.src = LOGO);
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let me = null, profilo = null, giornate = [], corse = [], miei = {}, scontri = [], utenti = {};
-const CORSE_CLASSIFICA = 10;
+let CORSE_CLASSIFICA = 10;
 const NOMI_TURNO = {8:'Ottavi di finale', 4:'Quarti di finale', 2:'Semifinali', 1:'Finale'};
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -192,7 +192,7 @@ sb.auth.onAuthStateChange(async (ev, session) => {
 // ---------- ISCRIZIONI ----------
 let imp = {};
 const fmtDataOra = d => new Date(d).toLocaleString('it-IT', { weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
-async function caricaImpostazioni(){ const { data } = await sb.from('impostazioni').select('*').eq('id', 1).maybeSingle(); imp = data || {}; }
+async function caricaImpostazioni(){ const { data } = await sb.from('impostazioni').select('*').eq('id', 1).maybeSingle(); imp = data || {}; CORSE_CLASSIFICA = imp.corse_classifica || 10; }
 function statoIscrizioni(){
   const now = new Date();
   if (imp.iscrizioni_apertura && now < new Date(imp.iscrizioni_apertura)) return 'prima';
@@ -211,9 +211,11 @@ function toLocalInput(d){ if (!d) return ''; const x = new Date(d); x.setMinutes
 async function salvaIscrizioni(){
   const a = $('iA').value, c = $('iC').value;
   if (a && c && new Date(c) <= new Date(a)) return msg('iMsg', 'La chiusura deve essere dopo l\'apertura');
-  const { error } = await sb.from('impostazioni').upsert({ id: 1, nome_gioco: $('iNome').value.trim() || null, iscrizioni_apertura: a ? new Date(a).toISOString() : null, iscrizioni_chiusura: c ? new Date(c).toISOString() : null });
+  const nc = parseInt($('iN').value, 10);
+  if (!(nc >= 1 && nc <= 100)) return msg('iMsg', 'Numero corse a classifica non valido');
+  const { error } = await sb.from('impostazioni').upsert({ id: 1, corse_classifica: nc, nome_gioco: $('iNome').value.trim() || null, iscrizioni_apertura: a ? new Date(a).toISOString() : null, iscrizioni_chiusura: c ? new Date(c).toISOString() : null });
   if (error) return msg('iMsg', error.message);
-  await caricaImpostazioni(); msg('iMsg', 'Iscrizioni salvate ✅', 'ok');
+  await caricaImpostazioni(); renderAdmin(); msg('iMsg', 'Impostazioni salvate ✅', 'ok');
 }
 
 // ---------- DATI ----------
@@ -257,7 +259,9 @@ async function renderHome(){
       <div class="stats"><div><b>${mio.corse_giocate}</b>corse</div><div><b>${mio.vincenti}</b>vincenti</div><div><b>${i>=0?i+1:'-'}°</b>posizione</div></div></div>
     <h2 style="color:var(--verde);font-size:24px;margin:6px 0">Prossime corse ${daFare?`<span class="badge b-chiusa">${daFare} da pronosticare</span>`:''}</h2>
     ${prossime.length ? prossime.map(cardCorsa).join('') : '<div class="card muted">Nessuna corsa aperta al momento. Torna più tardi!</div>'}
-    <button class="btn full" onclick="go('corse')">Tutte le corse</button>`;
+    <button class="btn full" onclick="go('corse')">Tutte le corse</button>
+    <h2 style="color:var(--verde);font-size:24px;margin:18px 0 6px">📰 Giornale del trotto</h2><div id="giornale" class="card"><p class="muted">Caricamento notizie…</p></div>`;
+  caricaGiornale();
 }
 
 // ---------- CORSE ----------
@@ -433,6 +437,17 @@ async function resetTabellone(){
   await sb.from('scontri').delete().gt('id', 0); await carica(); renderAdmin();
 }
 
+// ---------- GIORNALE ----------
+let notizieTutte = false;
+async function caricaGiornale(){
+  const { data, error } = await sb.from('notizie').select('*').order('pubblicata', { ascending:false, nullsFirst:false }).limit(notizieTutte ? 60 : 8);
+  if (!$('giornale')) return;
+  if (error || !data?.length) { $('giornale').innerHTML = '<p class="muted">Nessuna notizia per ora. Il giornale si aggiorna ogni giorno.</p>'; return; }
+  $('giornale').innerHTML = data.map(n => `<a href="${esc(n.link)}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit;padding:10px 0;border-bottom:1px solid #eee">
+      <b style="font-size:15px">${esc(n.titolo)}</b><div class="muted" style="font-size:12px;margin-top:3px">${esc(n.fonte||'')}${n.pubblicata?' · '+fmtDataOra(n.pubblicata):''}</div></a>`).join('')
+    + `<button class="btn-ghost full" style="margin-top:10px" onclick="notizieTutte=!notizieTutte;caricaGiornale()">${notizieTutte?'Mostra meno':'Tutte le notizie'}</button>`;
+}
+
 // ---------- REGOLE ----------
 function renderRegole(){
   const h = t => `<h3 style="margin-top:16px;font-size:22px;color:var(--verde);border-bottom:2px solid var(--oro);padding-bottom:4px">${t}</h3>`;
@@ -465,13 +480,14 @@ function renderAdmin(){
   const optG = giornate.map(g => `<option value="${g.id}">${esc(g.nome)} (${fmtData(g.data)})</option>`).join('');
   const daChiudere = corse.filter(c => !c.arrivo?.length && new Date(c.orario) <= new Date());
   $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Pannello commissario</h2>
-  <div class="card"><h3 style="font-size:22px">📝 Iscrizioni al gioco</h3>
+  <div class="card"><h3 style="font-size:22px">📝 Impostazioni gioco</h3>
     <p class="muted" style="margin-bottom:8px">Fuori da queste date nessuno può registrarsi. Lascia vuoto per non mettere limiti.</p>
     <label>Nome del gioco</label><input id="iNome" placeholder="es. T10 Champions League" value="${esc(imp.nome_gioco||'')}">
+    <label>Numero di corse a classifica (prima degli scontri diretti)</label><input type="number" id="iN" min="1" max="100" value="${CORSE_CLASSIFICA}">
     <label>Apertura iscrizioni</label><input type="datetime-local" id="iA" value="${toLocalInput(imp.iscrizioni_apertura)}">
     <label>Chiusura iscrizioni</label><input type="datetime-local" id="iC" value="${toLocalInput(imp.iscrizioni_chiusura)}">
     <p class="muted">Stato attuale: <b>${{prima:'non ancora aperte',aperte:'aperte',chiuse:'chiuse'}[statoIscrizioni()]}</b> · utenti iscritti: <b>${Object.keys(utenti).length}</b></p>
-    <div id="iMsg"></div><button class="btn full" onclick="salvaIscrizioni()">Salva iscrizioni</button></div>
+    <div id="iMsg"></div><button class="btn full" onclick="salvaIscrizioni()">Salva impostazioni</button></div>
   <div class="card"><h3 style="font-size:22px">1. Nuova giornata</h3>
     <label>Nome</label><input id="gNome" placeholder="es. Giornata 1 - Domenica di trotto">
     <label>Data</label><input type="date" id="gData">
