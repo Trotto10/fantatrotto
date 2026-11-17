@@ -12,6 +12,13 @@
 :root{--verde:#0f3d2e;--verde2:#16523e;--oro:#d4a537;--crema:#f6f1e4;--testo:#1c1c1c;--grigio:#6b7280;--rosso:#b3261e;--card:#fff}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Inter,system-ui,sans-serif;background:var(--crema);color:var(--testo);min-height:100vh;padding-bottom:80px}
+body.has-sponsor{padding-bottom:140px}
+#sponsorBar{position:fixed;left:0;right:0;z-index:7;bottom:calc(64px + env(safe-area-inset-bottom));display:flex;justify-content:center;pointer-events:none}
+#sponsorBar.su-auth{bottom:calc(12px + env(safe-area-inset-bottom))}
+#sponsorBar a{pointer-events:auto;display:flex;align-items:center;gap:10px;background:rgba(10,10,10,.92);color:#fff;text-decoration:none;border:1px solid var(--oro);border-radius:14px;padding:6px 14px 6px 6px;max-width:94%;box-shadow:0 6px 18px rgba(0,0,0,.3);transition:opacity .4s}
+#sponsorBar img{width:44px;height:44px;border-radius:10px;object-fit:contain;background:#fff}
+#sponsorBar .sp-t{font-size:10px;color:var(--oro);letter-spacing:1px;text-transform:uppercase}
+#sponsorBar .sp-n{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
 h1,h2,h3{font-family:'Bebas Neue',sans-serif;letter-spacing:1px;font-weight:400}
 button{font:inherit;cursor:pointer;border:0;border-radius:10px;padding:11px 16px;font-weight:600}
 input,select,textarea{font:inherit;width:100%;padding:11px;border:1px solid #d1d5db;border-radius:10px;background:#fff;margin-bottom:10px}
@@ -115,6 +122,8 @@ td.n{text-align:right;font-weight:700}tr.me{background:#fff8e6}
   </nav>
 </section>
 
+<div id="sponsorBar" class="hidden"></div>
+
 <script>
 // ===== CONFIGURAZIONE: incolla qui i tuoi dati Supabase =====
 const SUPABASE_URL = 'https://bxzhwhskazlyozavirgd.supabase.co';
@@ -206,7 +215,7 @@ sb.auth.onAuthStateChange(async (ev, session) => {
     if (np) { const { error } = await sb.auth.updateUser({ password: np }); alert(error ? error.message : 'Password aggiornata!'); }
   }
   if (session?.user) { if (me?.id !== session.user.id) { me = session.user; await avvia(); } }
-  else { me = null; $('app').classList.add('hidden'); $('auth').classList.remove('hidden'); mostraIscrizioni(); }
+  else { me = null; $('app').classList.add('hidden'); $('auth').classList.remove('hidden'); mostraIscrizioni(); mostraSponsor(); }
 });
 
 // ---------- COMPETIZIONI ----------
@@ -301,7 +310,7 @@ async function avvia(){
   profilo = p || { username: me.email, is_admin: false };
   $('chip').innerHTML = `👤 ${esc(profilo.username)} · <a href="#" onclick="logout()" style="color:var(--oro)">esci</a>`;
   $('navAdmin').classList.toggle('hidden', !profilo.is_admin);
-  avviaPresenza();
+  avviaPresenza(); mostraSponsor();
   await carica(); go('home');
 }
 async function carica(){
@@ -559,6 +568,62 @@ function linkRisultati(c){
 }
 const btnRisultati = c => `<a class="btn-ghost" href="${linkRisultati(c)}" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none;margin-top:8px;padding:11px 16px;border-radius:10px;font-weight:600">📊 Risultati su TrottoWeb</a>`;
 
+// ---------- SPONSOR ----------
+let sponsor = [], spIdx = 0, spTimer = null;
+async function caricaSponsor(){
+  const { data } = await sb.from('sponsor').select('*').order('ordine').order('id');
+  sponsor = data || []; spIdx = 0; mostraSponsor();
+  clearInterval(spTimer);
+  if (sponsor.filter(x => x.attivo).length > 1) spTimer = setInterval(() => { spIdx++; mostraSponsor(true); }, 5000);
+}
+function mostraSponsor(anima){
+  const att = sponsor.filter(x => x.attivo), bar = $('sponsorBar');
+  if (!att.length) { bar.classList.add('hidden'); document.body.classList.remove('has-sponsor'); return; }
+  const x = att[spIdx % att.length];
+  const html = `<a href="${esc(x.link || '#')}" ${x.link ? 'target="_blank" rel="noopener"' : 'onclick="return false"'}>
+    ${x.logo ? `<img src="${x.logo}" alt="">` : ''}<div><div class="sp-t">Sponsor</div><div class="sp-n">${esc(x.nome)}</div></div></a>`;
+  bar.classList.remove('hidden'); bar.classList.toggle('su-auth', !me); document.body.classList.add('has-sponsor');
+  if (anima && bar.firstElementChild) { bar.firstElementChild.style.opacity = 0; setTimeout(() => { bar.innerHTML = html; }, 350); }
+  else bar.innerHTML = html;
+}
+function adminSponsor(){
+  return `<div class="card"><h3 style="font-size:22px">💼 Sponsor</h3>
+    <p class="muted" style="margin-bottom:8px">Compaiono sempre in basso nel sito e nella pagina di accesso, a rotazione ogni 5 secondi.</p>
+    ${sponsor.map(x => `<div class="row" style="border-bottom:1px solid #eee;padding:8px 0;align-items:center">
+      ${x.logo ? `<img src="${x.logo}" style="flex:0 0 40px;width:40px;height:40px;border-radius:8px;object-fit:contain;background:#f3f4f6">` : '<div style="flex:0 0 40px"></div>'}
+      <div style="flex:3"><b>${esc(x.nome)}</b><div class="muted" style="font-size:12px;word-break:break-all">${esc(x.link || 'nessun link')}</div></div>
+      <button class="btn-ghost" style="flex:0;padding:6px 10px" onclick="toggleSponsor(${x.id}, ${!x.attivo})">${x.attivo ? '👁' : '🚫'}</button>
+      <button class="btn-rosso" style="flex:0;padding:6px 10px" onclick="eliminaSponsor(${x.id})">🗑</button></div>`).join('') || '<p class="muted">Nessuno sponsor.</p>'}
+    <h4 style="margin-top:12px">Nuovo sponsor</h4>
+    <label>Nome</label><input id="spNome" placeholder="es. Gommista Rossi">
+    <label>Link (sito, Instagram, WhatsApp… facoltativo)</label><input id="spLink" type="url" placeholder="https://…">
+    <label>Logo (immagine dal telefono)</label><input id="spLogo" type="file" accept="image/*">
+    <div id="spMsg"></div><button class="btn full" onclick="nuovoSponsor()">Aggiungi sponsor</button></div>`;
+}
+function rimpicciolisci(file, max = 200){
+  return new Promise((ok, ko) => {
+    const r = new FileReader(); r.onerror = ko;
+    r.onload = () => { const img = new Image(); img.onerror = ko; img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      ok(c.toDataURL('image/jpeg', 0.85)); }; img.src = r.result; };
+    r.readAsDataURL(file);
+  });
+}
+async function nuovoSponsor(){
+  const nome = $('spNome').value.trim(); if (!nome) return msg('spMsg', 'Scrivi il nome dello sponsor');
+  let link = $('spLink').value.trim(); if (link && !/^https?:\/\//i.test(link)) link = 'https://' + link;
+  let logo = null; const f = $('spLogo').files[0];
+  if (f) { try { logo = await rimpicciolisci(f); } catch(e) { return msg('spMsg', 'Immagine non valida'); } }
+  const { error } = await sb.from('sponsor').insert({ nome, link: link || null, logo, ordine: sponsor.length });
+  if (error) return msg('spMsg', error.message);
+  await caricaSponsor(); renderAdmin(); msg('spMsg', 'Sponsor aggiunto ✅', 'ok');
+}
+async function toggleSponsor(id, attivo){ await sb.from('sponsor').update({ attivo }).eq('id', id); await caricaSponsor(); renderAdmin(); }
+async function eliminaSponsor(id){ if (!confirm('Eliminare questo sponsor?')) return; await sb.from('sponsor').delete().eq('id', id); await caricaSponsor(); renderAdmin(); }
+caricaSponsor();
+
 // ---------- GIORNALE ----------
 let notizieTutte = false;
 async function caricaGiornale(){
@@ -629,6 +694,7 @@ function renderAdmin(){
   const daChiudere = corse.filter(c => !c.arrivo?.length && new Date(c.orario) <= new Date());
   $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Pannello commissario</h2>
   ${adminComp()}
+  ${adminSponsor()}
   <div class="card"><h3 style="font-size:22px">1. Nuova giornata</h3>
     <label>Nome</label><input id="gNome" placeholder="es. Giornata 1 - Domenica di trotto">
     <label>Data</label><input type="date" id="gData">
