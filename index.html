@@ -147,6 +147,8 @@ let giornateAll = [], corseAll = [], scontriAll = [], paginaAttuale = 'home';
 let CORSE_CLASSIFICA = 10;
 const NOMI_TURNO = {8:'Ottavi di finale', 4:'Quarti di finale', 2:'Semifinali', 1:'Finale'};
 const $ = id => document.getElementById(id);
+// cerca prima nella pagina visibile (la stessa corsa può comparire sia in Home sia in Corse)
+const $v = id => document.querySelector(`#pg-${typeof paginaAttuale!=='undefined'?paginaAttuale:'home'} [id="${id}"]`) || document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtData = d => new Date(d).toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'});
 const fmtOra = d => new Date(d).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
@@ -168,7 +170,7 @@ function effettivi(p, c){
   return e;
 }
 
-function msg(el, testo, tipo='err'){ $(el).innerHTML = testo ? `<div class="msg ${tipo}">${esc(testo)}</div>` : ''; }
+function msg(el, testo, tipo='err'){ const t = $v(el); if (!t) return; t.innerHTML = testo ? `<div class="msg ${tipo}">${esc(testo)}</div>` : ''; }
 
 // ---------- AUTH ----------
 function setTab(t){
@@ -428,12 +430,12 @@ function calcPunti(p, c){
   return t;
 }
 async function salvaPronostico(id){
-  const v = k => { const x = $(`${k}-${id}`).value; return x ? +x : null; };
+  const v = k => { const x = $v(`${k}-${id}`).value; return x ? +x : null; };
   const primo = v('p1'), secondo = v('p2'), terzo = v('p3'), riserva = v('pr');
   if (!primo || !secondo || !terzo) return msg('m-'+id, 'Scegli 1°, 2° e 3° classificato');
   const scelti = [primo,secondo,terzo,riserva].filter(Boolean);
   if (new Set(scelti).size !== scelti.length) return msg('m-'+id, 'Non puoi scegliere lo stesso cavallo due volte (riserva compresa)');
-  const tempo = parseTempo($('pt-'+id).value);
+  const tempo = parseTempo($v('pt-'+id).value);
   if (tempo == null) return msg('m-'+id, 'Scrivi il tempo al km così: 1\'12"1 (oppure 1.12.1)');
   const { data, error } = await sb.from('pronostici').upsert({ user_id: me.id, corsa_id: id, primo, secondo, terzo, riserva, tempo, updated_at: new Date().toISOString() }, { onConflict: 'user_id,corsa_id' }).select().single();
   if (error) return msg('m-'+id, error.message.includes('row-level') ? 'Pronostici chiusi (1 ora prima della partenza)' : error.message);
@@ -443,7 +445,7 @@ async function vediPronostici(id){
   const { data } = await sb.from('pronostici_punti').select('*').eq('corsa_id', id).order('punti', { ascending:false });
   const c = corse.find(x => x.id===id);
   if (data) data.sort((a,b) => b.punti-a.punti || (a.diff_tempo??1e9)-(b.diff_tempo??1e9));
-  $('tutti-'+id).innerHTML = data?.length ? `<table style="margin-top:10px"><tr><th>Utente</th><th>Pronostico</th><th>Tempo</th><th class="n">Pt</th></tr>${data.map(r=>`<tr class="${r.user_id===me.id?'me':''}"><td>${esc(r.username)}</td><td>${[r.primo,r.secondo,r.terzo].filter(Boolean).join(' - ')}${r.riserva?` <span class="muted">(ris. ${r.riserva})</span>`:''}</td><td>${fmtTempo(r.tempo)}${r.updated_at?`<div class="muted" style="font-size:11px">${new Date(r.updated_at).toLocaleString("it-IT",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}</div>`:""}</td><td class="n">${c.arrivo?.length?r.punti:'-'}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin-top:8px">Nessun pronostico.</p>';
+  $v('tutti-'+id).innerHTML = data?.length ? `<table style="margin-top:10px"><tr><th>Utente</th><th>Pronostico</th><th>Tempo</th><th class="n">Pt</th></tr>${data.map(r=>`<tr class="${r.user_id===me.id?'me':''}"><td>${esc(r.username)}</td><td>${[r.primo,r.secondo,r.terzo].filter(Boolean).join(' - ')}${r.riserva?` <span class="muted">(ris. ${r.riserva})</span>`:''}</td><td>${fmtTempo(r.tempo)}${r.updated_at?`<div class="muted" style="font-size:11px">${new Date(r.updated_at).toLocaleString("it-IT",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}</div>`:""}</td><td class="n">${c.arrivo?.length?r.punti:'-'}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin-top:8px">Nessun pronostico.</p>';
 }
 
 // ---------- CLASSIFICA ----------
