@@ -12,17 +12,21 @@
 :root{--verde:#0f3d2e;--verde2:#16523e;--oro:#d4a537;--crema:#f6f1e4;--testo:#1c1c1c;--grigio:#6b7280;--rosso:#b3261e;--card:#fff}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Inter,system-ui,sans-serif;background:var(--crema);color:var(--testo);min-height:100vh;padding-bottom:80px}
-body.has-sponsor{padding-bottom:124px}
-#sponsorBar{position:fixed;left:0;right:0;z-index:7;bottom:calc(58px + env(safe-area-inset-bottom));background:#0b0b0b;border-top:2px solid var(--oro)}
-#sponsorBar.su-auth{bottom:0;padding-bottom:env(safe-area-inset-bottom)}
-#sponsorBar{overflow:hidden;height:46px}
-#sponsorBar .sp-track{display:flex;width:max-content;height:46px;align-items:center;animation:sp-scroll linear infinite}
+body.has-sponsor{padding-bottom:150px}
+#sponsorBar{position:fixed;left:0;right:0;z-index:7;bottom:calc(58px + env(safe-area-inset-bottom));height:68px;overflow:hidden;
+  background:linear-gradient(90deg,#8a5f12,#e9c463 25%,#fff0b8 50%,#e9c463 75%,#8a5f12);border-top:3px solid #111;border-bottom:1px solid #111;box-shadow:0 -6px 18px rgba(0,0,0,.35)}
+#sponsorBar.su-auth{bottom:0;height:calc(68px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom)}
+#sponsorBar::after{content:"";position:absolute;top:0;bottom:0;left:-40%;width:30%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.75),transparent);animation:sp-shine 4s ease-in-out infinite;pointer-events:none}
+@keyframes sp-shine{0%,55%{left:-40%}100%{left:120%}}
+#sponsorBar .sp-track{display:flex;width:max-content;height:68px;align-items:center;animation:sp-scroll linear infinite}
 #sponsorBar:active .sp-track{animation-play-state:paused}
 @keyframes sp-scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-#sponsorBar a{display:flex;align-items:center;gap:8px;color:#fff;text-decoration:none;padding:0 22px;height:46px;white-space:nowrap;border-right:1px solid rgba(212,165,55,.35)}
-#sponsorBar img{width:32px;height:32px;border-radius:6px;object-fit:contain;background:#fff}
-#sponsorBar .sp-t{font-size:10px;color:var(--oro);letter-spacing:1.5px;text-transform:uppercase}
-#sponsorBar .sp-n{font-weight:700;font-size:15px}
+#sponsorBar a{display:flex;align-items:center;gap:12px;color:#111;text-decoration:none;padding:0 26px;height:68px;white-space:nowrap}
+#sponsorBar a::after{content:"◆";margin-left:26px;color:#111;font-size:12px;opacity:.6}
+#sponsorBar img,#sponsorBar .sp-ini{width:52px;height:52px;border-radius:50%;object-fit:contain;background:#fff;border:3px solid #111;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+#sponsorBar .sp-ini{display:flex;align-items:center;justify-content:center;background:#111;color:#e9c463;font-family:'Bebas Neue';font-size:26px}
+#sponsorBar .sp-t{display:block;font-size:10px;font-weight:800;letter-spacing:2px;color:#5a3d00}
+#sponsorBar .sp-n{display:block;font-family:'Bebas Neue';font-size:30px;line-height:1;letter-spacing:1px;color:#111}
 h1,h2,h3{font-family:'Bebas Neue',sans-serif;letter-spacing:1px;font-weight:400}
 button{font:inherit;cursor:pointer;border:0;border-radius:10px;padding:11px 16px;font-weight:600}
 input,select,textarea{font:inherit;width:100%;padding:11px;border:1px solid #d1d5db;border-radius:10px;background:#fff;margin-bottom:10px}
@@ -582,13 +586,13 @@ function mostraSponsor(){
   const att = sponsor.filter(x => x.attivo), bar = $('sponsorBar');
   if (!att.length) { bar.classList.add('hidden'); document.body.classList.remove('has-sponsor'); return; }
   const voce = x => `<a href="${esc(x.link || '#')}" ${x.link ? 'target="_blank" rel="noopener"' : 'onclick="return false"'}>
-    <span class="sp-t">Sponsor</span>${x.logo ? `<img src="${x.logo}" alt="">` : ''}<span class="sp-n">${esc(x.nome)}</span></a>`;
+    ${x.logo ? `<img src="${x.logo}" alt="">` : `<span class="sp-ini">${esc(x.nome.split(/\s+/).map(w => w[0]).join('').slice(0,2).toUpperCase())}</span>`}<span><span class="sp-t">Sponsor ufficiale</span><span class="sp-n">${esc(x.nome)}</span></span></a>`;
   // ripeto la fila finché riempie lo schermo, poi la duplico per lo scorrimento continuo
   let fila = att.map(voce).join(''); const rip = Math.max(1, Math.ceil(6 / att.length));
   fila = fila.repeat(rip);
   bar.innerHTML = `<div class="sp-track">${fila}${fila}</div>`;
   bar.classList.remove('hidden'); bar.classList.toggle('su-auth', !me); document.body.classList.add('has-sponsor');
-  requestAnimationFrame(() => { const t = bar.firstElementChild; if (t) t.style.animationDuration = Math.max(12, t.scrollWidth / 2 / 45) + 's'; });
+  requestAnimationFrame(() => { const t = bar.firstElementChild; if (t) t.style.animationDuration = Math.max(14, t.scrollWidth / 2 / 55) + 's'; });
 }
 function adminSponsor(){
   return `<div class="card"><h3 style="font-size:22px">💼 Sponsor</h3>
