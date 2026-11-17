@@ -271,8 +271,7 @@ function go(p){
 
 // ---------- HOME ----------
 async function renderHome(){
-  const { data: cl } = await sb.from('classifica').select('*').order('punti', { ascending:false }).order('vincenti', { ascending:false });
-  const lista = cl || []; const i = lista.findIndex(r => r.user_id === me.id); const mio = lista[i] || { punti:0, corse_giocate:0, vincenti:0 };
+  const lista = await classificaCalcolata(); const i = lista.findIndex(r => r.user_id === me.id); const mio = lista[i] || { punti:0, corse_giocate:0, vincenti:0 };
   const prossime = corse.filter(c => stato(c)==='aperta').slice(0,3);
   const daFare = prossime.filter(c => !miei[c.id]).length;
   $('pg-home').innerHTML = `
@@ -311,7 +310,7 @@ function cardCorsa(c){
     const extra = s==='fine' ? `<p class="muted" style="margin-top:6px">${c.tempo_ufficiale?`⏱ Tempo ufficiale <b>${fmtTempo(c.tempo_ufficiale)}</b>`:''}${c.ritirati?.length?` · Ritirati: ${c.ritirati.join(', ')}`:''}${c.rotture?.length?` · Squalificati per rottura: ${c.rotture.join(', ')}`:''}</p>` : '';
     const arr = s==='fine' ? `<div class="arrivo">${c.arrivo.map((n,i)=>`<span class="a">${i+1}° n° ${n}</span>`).join('')}</div>${extra}` : '';
     const pt = s==='fine' && p.primo ? (v => `<div class="punti">${v>=0?'+':''}${v} punti</div>`)(calcPunti(p, c)) : '';
-    corpo = arr + tuo + pt + `<button class="btn-ghost full" style="margin-top:10px" onclick="vediPronostici(${c.id})">Pronostici di tutti</button><div id="tutti-${c.id}"></div>`;
+    corpo = arr + tuo + pt + btnRisultati(c) + `<button class="btn-ghost full" style="margin-top:10px" onclick="vediPronostici(${c.id})">Pronostici di tutti</button><div id="tutti-${c.id}"></div>`;
   }
   return `<div class="card"><div class="corsa-top"><div><h3>${c.numero}ª corsa · ${esc(c.ippodromo)}</h3>${c.fase==='scontri'?'<span class="badge b-chiusa">⚔️ Scontri diretti</span>':''}<p class="muted">${esc(c.nome)} · ${fmtData(c.orario)} ore ${fmtOra(c.orario)}</p></div><span class="badge b-${s}">${lab}</span></div>${corpo}</div>`;
 }
@@ -342,25 +341,48 @@ async function vediPronostici(id){
 }
 
 // ---------- CLASSIFICA ----------
+// Classifica calcolata con la scala di spareggi
+async function classificaCalcolata(giornataId){
+  const cs = corse.filter(c => c.fase !== 'scontri' && c.arrivo?.length && (!giornataId || c.giornata_id == giornataId))
+                  .sort((a,b) => new Date(b.orario) - new Date(a.orario)); // dalla più recente
+  const idx = {}; cs.forEach((c,i) => idx[c.id] = i);
+  let rows = [];
+  if (cs.length) { const { data } = await sb.from('pronostici_punti').select('*').in('corsa_id', cs.map(c => c.id)).limit(10000); rows = data || []; }
+  const by = {};
+  const S = (id, nome) => by[id] ??= { user_id:id, username: utenti[id] || nome || '?', punti:0, corse_giocate:0, vincenti:0, esatti:0, bonus:0, rotture:0, seq: cs.map(() => 0), ultimo: Infinity };
+  if (!giornataId) Object.keys(utenti).forEach(id => S(id));
+  rows.forEach(r => {
+    const k = idx[r.corsa_id]; if (k == null) return;
+    const c = cs[k], u = S(r.user_id, r.username), a = c.arrivo, rot = c.rotture || [], e = effettivi(r, c);
+    u.punti += r.punti; u.seq[k] = r.punti; u.corse_giocate++;
+    e.forEach((n,i) => { if (n == null) return; if (rot.includes(n)) u.rotture++; else if (n == a[i]) u.esatti++; });
+    if (e[0] == a[0]) u.vincenti++;
+    if (e[0] == a[0] && r.tempo != null && r.tempo == c.tempo_ufficiale) u.bonus++;
+    if (k === 0) u.ultimo = new Date(r.updated_at).getTime() || Infinity;
+  });
+  return Object.values(by).sort(confrontaClassifica);
+}
+function confrontaClassifica(a, b){
+  const d = (b.punti - a.punti) || (b.vincenti - a.vincenti) || (b.esatti - a.esatti) || (b.bonus - a.bonus) || (a.rotture - b.rotture);
+  if (d) return d;
+  for (let i = 0; i < a.seq.length; i++) if (a.seq[i] !== b.seq[i]) return b.seq[i] - a.seq[i];
+  return a.ultimo === b.ultimo ? 0 : (a.ultimo < b.ultimo ? -1 : 1);
+}
 async function renderClassifica(){
-  const { data } = await sb.from('classifica').select('*').order('punti', { ascending:false }).order('vincenti', { ascending:false });
+  const data = await classificaCalcolata();
   const opts = giornate.map(g => `<option value="${g.id}">${esc(g.nome)}</option>`).join('');
   $('pg-classifica').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">🏆 Classifica</h2>
     <select id="clSel" onchange="cambiaClassifica()"><option value="">Generale</option>${opts}</select>
-    <div class="card" id="clTab">${tabellaCl(data||[])}</div>`;
+    <div class="card" id="clTab">${tabellaCl(data)}</div>`;
 }
 function tabellaCl(rows){
   if (!rows.length) return '<p class="muted">Ancora nessun punteggio.</p>';
-  return `<table><tr><th>#</th><th>Utente</th><th class="n">Vinc.</th><th class="n">Punti</th></tr>${rows.map((r,i)=>`<tr class="${r.user_id===me.id?'me':''}"><td class="${i===0?'pos1':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</td><td>${esc(r.username)}</td><td class="n">${r.vincenti}</td><td class="n">${r.punti}</td></tr>`).join('')}</table>
-  <p class="muted" style="margin-top:8px">A pari punti è davanti chi ha indovinato più vincenti.</p>`;
+  return `<table><tr><th>#</th><th>Utente</th><th class="n">Vinc.</th><th class="n">Esatti</th><th class="n">Punti</th></tr>${rows.map((r,i)=>`<tr class="${r.user_id===me.id?'me':''}"><td class="${i===0?'pos1':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</td><td>${esc(r.username)}</td><td class="n">${r.vincenti}</td><td class="n">${r.esatti}</td><td class="n">${r.punti}</td></tr>`).join('')}</table>
+  <p class="muted" style="margin-top:8px">A pari punti: più vincenti, più piazzamenti esatti, più bonus +20, meno rotture, miglior punteggio nelle ultime corse, pronostico inserito prima (vedi Regole).</p>`;
 }
 async function cambiaClassifica(){
   const g = $('clSel').value;
-  if (!g) { const { data } = await sb.from('classifica').select('*').order('punti',{ascending:false}).order('vincenti',{ascending:false}); $('clTab').innerHTML = tabellaCl(data||[]); return; }
-  const { data } = await sb.from('pronostici_punti').select('*').eq('giornata_id', g);
-  const tot = {};
-  (data||[]).forEach(r => { const c = corse.find(x=>x.id===r.corsa_id); if (!c?.arrivo?.length) return; tot[r.user_id] ??= { user_id:r.user_id, username:r.username, punti:0, vincenti:0, diff_tempo:0 }; tot[r.user_id].punti += r.punti; tot[r.user_id].diff_tempo += r.diff_tempo ?? 0; if (r.primo==c.arrivo[0]) tot[r.user_id].vincenti++; });
-  $('clTab').innerHTML = tabellaCl(Object.values(tot).sort((a,b)=>b.punti-a.punti||b.vincenti-a.vincenti));
+  $('clTab').innerHTML = tabellaCl(await classificaCalcolata(g || null));
 }
 
 
@@ -411,8 +433,7 @@ function adminScontri(){
   return `<div class="card"><h3 style="font-size:22px">4. Scontri diretti</h3>${corpo}</div>`;
 }
 async function generaTabellone(){
-  const { data: cl } = await sb.from('classifica').select('*').order('punti',{ascending:false}).order('vincenti',{ascending:false});
-  const lista = cl || []; let N = 16; while (N > lista.length) N /= 2;
+  const lista = await classificaCalcolata(); let N = 16; while (N > lista.length) N /= 2;
   if (N < 2) return msg('sMsg','Servono almeno 2 iscritti');
   const fatte = corse.filter(c => c.fase !== 'scontri' && c.arrivo?.length).length;
   if (!confirm(`Creare il tabellone con i primi ${N} della classifica?${fatte < CORSE_CLASSIFICA ? `\n\nAttenzione: corse a classifica concluse ${fatte}/${CORSE_CLASSIFICA}.` : ''}`)) return;
@@ -459,6 +480,19 @@ async function resetTabellone(){
   await sb.from('scontri').delete().gt('id', 0); await carica(); renderAdmin();
 }
 
+// ---------- RISULTATI TROTTOWEB ----------
+const SIGLE_TW = { NAPOLI:'NA', ROMA:'RO', MONTEGIORGIO:'MG', PALERMO:'PA', TREVISO:'TV', BOLOGNA:'BO', CASTELLUCCIO:'CS' };
+function linkRisultati(c){
+  const base = 'https://www.trottoweb.it/TrottoWeb/php_resp/hRis.php';
+  const nome = String(c.ippodromo||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  const sigla = SIGLE_TW[nome] || Object.entries(SIGLE_TW).find(([k]) => nome.includes(k))?.[1];
+  if (!sigla) return base;
+  const ippo = Object.keys(SIGLE_TW).find(k => SIGLE_TW[k] === sigla);
+  const d = new Date(c.orario), data = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return `${base}?data=${data}&sigla=${sigla}&ippodromo=${encodeURIComponent(ippo)}&flag_ris_u=1&note_giorno=`;
+}
+const btnRisultati = c => `<a class="btn-ghost" href="${linkRisultati(c)}" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none;margin-top:8px;padding:11px 16px;border-radius:10px;font-weight:600">📊 Risultati su TrottoWeb</a>`;
+
 // ---------- GIORNALE ----------
 let notizieTutte = false;
 async function caricaGiornale(){
@@ -486,7 +520,14 @@ function renderRegole(){
   ${h('1. Punteggio piazzamento')}<ul><li>1° esatto = <b>10 punti</b> | 2° esatto = <b>7 punti</b> | 3° esatto = <b>5 punti</b></li><li>Piazzato fuori ordine (es. dai 3° e arriva 1°) = <b>3 punti</b></li></ul>
   ${h('2. Riserva')}<ul><li>Se un titolare è ritirato, entra la riserva al suo posto.</li><li>La riserva prende i punti normali.</li></ul>
   ${h('3. Squalifica per rottura')}<ul><li>Cavallo squalificato per rottura di camminata = <b>-3 punti</b></li></ul>
-  ${h('4. Bonus extra 20 punti')}<ul><li>Se indovini il <b>vincente</b> e il <b>tempo al km esatto</b> = <b>+20 punti extra</b>.</li><li>Il tempo deve essere identico a quello ufficiale (es. pronostico 1'12"1, reale 1'12"1).</li></ul></div>
+  ${h('4. Bonus extra 20 punti')}<ul><li>Se indovini il <b>vincente</b> e il <b>tempo al km esatto</b> = <b>+20 punti extra</b>.</li><li>Il tempo deve essere identico a quello ufficiale (es. pronostico 1'12"1, reale 1'12"1).</li></ul>
+  ${h('5. Spareggi a pari punti')}<p style="font-size:15px">Si guardano questi criteri in ordine, finché uno è migliore:</p><ol style="margin:6px 0 0 20px;font-size:15px">
+  <li><b>Più vincenti indovinati</b> (1° al posto giusto)</li>
+  <li><b>Più piazzamenti esatti</b> (totale di 1°, 2° e 3° al posto giusto)</li>
+  <li><b>Più bonus +20</b> presi</li>
+  <li><b>Meno squalifiche per rottura</b> subite</li>
+  <li><b>Miglior punteggio nell'ultima corsa</b>; se pari la penultima, e così via</li>
+  <li><b>Chi ha inserito prima il pronostico dell'ultima corsa</b> (vale l'ultimo salvataggio)</li></ol></div>
 
   <div class="card regole"><h2 style="color:var(--verde);font-size:30px">⚔️ Scontri diretti</h2>
   <table style="margin-top:8px"><tr><th>Risultato</th><th class="n">Punti</th></tr>
@@ -527,7 +568,7 @@ function renderAdmin(){
       <label>⏱ Tempo al km ufficiale del vincitore</label><input id="at-${c.id}" placeholder="1'12&quot;1">
       <label>Ritirati (numeri separati da virgola)</label><input id="ar-${c.id}" inputmode="numeric" placeholder="es. 4, 11" value="${(c.ritirati||[]).join(', ')}">
       <label>Squalificati per rottura (numeri separati da virgola)</label><input id="ao-${c.id}" inputmode="numeric" placeholder="es. 7" value="${(c.rotture||[]).join(', ')}">
-      <button class="btn-oro full" onclick="salvaArrivo(${c.id})">Conferma arrivo</button></div>`).join('') : '<p class="muted">Nessuna corsa in attesa di arrivo.</p>'}</div>
+      <button class="btn-oro full" onclick="salvaArrivo(${c.id})">Conferma arrivo</button>${btnRisultati(c)}</div>`).join('') : '<p class="muted">Nessuna corsa in attesa di arrivo.</p>'}</div>
   ${adminScontri()}
   <div class="card"><h3 style="font-size:22px">Gestisci corse</h3>
     ${corse.length ? corse.slice().reverse().map(c => `<div class="row" style="border-bottom:1px solid #eee;padding:8px 0"><div style="flex:3"><b>${c.numero}ª ${esc(c.ippodromo)}</b><div class="muted">${c.fase==='scontri'?'⚔️':'🏆'} ${fmtData(c.orario)} ${fmtOra(c.orario)} · ${c.arrivo?.length?'arrivo: '+c.arrivo.join('-'):'senza arrivo'}</div></div>
