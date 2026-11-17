@@ -366,11 +366,34 @@ async function renderHome(){
 }
 
 // ---------- CORSE ----------
+let vistaCorse = 'programma';
 function renderCorse(){
-  if (!giornate.length) { $('pg-corse').innerHTML = '<div class="card muted">Ancora nessuna giornata in programma.</div>'; return; }
-  $('pg-corse').innerHTML = giornate.map(g => {
+  const tab = (k, t) => `<button class="${vistaCorse===k?'btn':'btn-ghost'}" onclick="vistaCorse='${k}';renderCorse()">${t}</button>`;
+  const testa = `<div class="row" style="margin-bottom:12px">${tab('programma','📅 In programma')}${tab('storico','📜 Storico')}</div>`;
+  if (vistaCorse === 'storico') { $('pg-corse').innerHTML = testa + '<div id="storico"><div class="card muted">Caricamento storico…</div></div>'; renderStorico(); return; }
+  // In programma: giornate con corse non ancora concluse (o senza corse)
+  const gs = giornate.filter(g => { const cs = corse.filter(c => c.giornata_id === g.id); return !cs.length || cs.some(c => !c.arrivo?.length); });
+  if (!gs.length) { $('pg-corse').innerHTML = testa + '<div class="card muted">Nessuna corsa in programma. Le corse concluse sono nello 📜 Storico.</div>'; return; }
+  $('pg-corse').innerHTML = testa + gs.map(g => {
     const cs = corse.filter(c => c.giornata_id === g.id);
     return `<div class="giornata-head"><h2>${esc(g.nome)}</h2><span class="muted">${fmtData(g.data)}</span></div>${cs.map(cardCorsa).join('') || '<div class="card muted">Corse in arrivo</div>'}`;
+  }).join('');
+}
+async function renderStorico(){
+  const fatte = corseAll.filter(c => c.arrivo?.length).sort((a,b) => new Date(b.orario) - new Date(a.orario));
+  if (!fatte.length) { $('storico').innerHTML = '<div class="card muted">Ancora nessuna corsa conclusa.</div>'; return; }
+  const { data } = await sb.from('pronostici_punti').select('user_id,username,corsa_id,punti,primo').in('corsa_id', fatte.map(c => c.id)).limit(10000);
+  const per = {}; (data || []).forEach(r => (per[r.corsa_id] ??= []).push(r));
+  const nomeComp = c => { const g = giornateAll.find(x => x.id === c.giornata_id); return competizioni.find(x => x.id === g?.competizione_id)?.nome || ''; };
+  let ultimoGiorno = '';
+  $('storico').innerHTML = `<p class="muted" style="margin-bottom:8px">${fatte.length} corse concluse</p>` + fatte.map(c => {
+    const giorno = fmtData(c.orario), prs = (per[c.id] || []).sort((a,b) => b.punti - a.punti), top = prs[0], mio = prs.find(r => r.user_id === me.id);
+    const head = giorno !== ultimoGiorno ? `<div class="giornata-head"><h2>${giorno}</h2></div>` : ''; ultimoGiorno = giorno;
+    return head + `<div class="card"><div class="corsa-top"><div><h3>${c.numero}ª corsa · ${esc(c.ippodromo)}</h3><p class="muted">${esc(c.nome)}${c.nome?' · ':''}${esc(nomeComp(c))}</p></div>
+      ${mio ? `<span class="punti" style="font-size:24px">${mio.punti>=0?'+':''}${mio.punti}</span>` : ''}</div>
+      <div class="arrivo">${c.arrivo.map((n,i) => `<span class="a">${i+1}° n° ${n}</span>`).join('')}</div>
+      <p class="muted" style="margin-top:6px">${c.tempo_ufficiale ? `⏱ ${fmtTempo(c.tempo_ufficiale)}` : ''}${c.ritirati?.length ? ` · Ritirati: ${c.ritirati.join(', ')}` : ''}${c.rotture?.length ? ` · Rotture: ${c.rotture.join(', ')}` : ''}</p>
+      <p style="margin-top:6px;font-size:14px">${top ? `🏅 Migliore: <b>${esc(top.username)}</b> (${top.punti} pt) · ${prs.length} pronostici` : '<span class="muted">Nessun pronostico</span>'}</p></div>`;
   }).join('');
 }
 function cardCorsa(c){
@@ -722,6 +745,8 @@ function renderAdmin(){
       <label>Squalificati per rottura (numeri separati da virgola)</label><input id="ao-${c.id}" inputmode="numeric" placeholder="es. 7" value="${(c.rotture||[]).join(', ')}">
       <button class="btn-oro full" onclick="salvaArrivo(${c.id})">Conferma arrivo</button>${btnRisultati(c)}</div>`).join('') : '<p class="muted">Nessuna corsa in attesa di arrivo.</p>'}</div>
   ${adminScontri()}
+  <div class="card"><h3 style="font-size:22px">Gestisci giornate</h3>
+    ${giornate.length ? giornate.map(g => { const n = corse.filter(c => c.giornata_id === g.id).length; return `<div class="row" style="border-bottom:1px solid #eee;padding:8px 0"><div style="flex:3"><b>${esc(g.nome)}</b><div class="muted">${fmtData(g.data)} · ${n} ${n===1?'corsa':'corse'}</div></div><button class="btn-rosso" style="flex:0" onclick="eliminaGiornata(${g.id})">🗑</button></div>`; }).join('') : '<p class="muted">Nessuna giornata.</p>'}</div>
   <div class="card"><h3 style="font-size:22px">Gestisci corse</h3>
     ${corse.length ? corse.slice().reverse().map(c => `<div class="row" style="border-bottom:1px solid #eee;padding:8px 0"><div style="flex:3"><b>${c.numero}ª ${esc(c.ippodromo)}</b><div class="muted">${c.fase==='scontri'?'⚔️':'🏆'} ${fmtData(c.orario)} ${fmtOra(c.orario)} · ${c.arrivo?.length?'arrivo: '+c.arrivo.join('-'):'senza arrivo'}</div></div>
       ${c.arrivo?.length?`<button class="btn-ghost" style="flex:0" onclick="annullaArrivo(${c.id})">↺</button>`:''}<button class="btn-rosso" style="flex:0" onclick="eliminaCorsa(${c.id})">🗑</button></div>`).join('') : '<p class="muted">Nessuna corsa.</p>'}</div>`;
@@ -759,7 +784,14 @@ async function salvaArrivo(id){
   if (error) return alert(error.message); await carica(); renderAdmin();
 }
 async function annullaArrivo(id){ if (!confirm('Annullare l\'arrivo di questa corsa?')) return; await sb.from('corse').update({ arrivo: null, tempo_ufficiale: null, ritirati: [], rotture: [] }).eq('id', id); await carica(); renderAdmin(); }
-async function eliminaCorsa(id){ if (!confirm('Eliminare la corsa e tutti i suoi pronostici?')) return; await sb.from('corse').delete().eq('id', id); await carica(); renderAdmin(); }
+async function eliminaGiornata(id){
+  const g = giornate.find(x => x.id === id), n = corse.filter(c => c.giornata_id === id).length;
+  if (!confirm(`Eliminare la giornata "${g?.nome}"${n ? ` con le sue ${n} corse e tutti i pronostici (spariscono anche dallo storico)` : ''}?`)) return;
+  const { error } = await sb.from('giornate').delete().eq('id', id);
+  if (error) return alert(error.message);
+  await carica(); renderAdmin();
+}
+async function eliminaCorsa(id){ if (!confirm('Eliminare la corsa e tutti i suoi pronostici? (sparisce anche dallo storico)')) return; await sb.from('corse').delete().eq('id', id); await carica(); renderAdmin(); }
 </script>
 </body>
 </html>
