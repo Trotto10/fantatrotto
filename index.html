@@ -12,13 +12,17 @@
 :root{--verde:#0f3d2e;--verde2:#16523e;--oro:#d4a537;--crema:#f6f1e4;--testo:#1c1c1c;--grigio:#6b7280;--rosso:#b3261e;--card:#fff}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Inter,system-ui,sans-serif;background:var(--crema);color:var(--testo);min-height:100vh;padding-bottom:80px}
-body.has-sponsor{padding-bottom:140px}
-#sponsorBar{position:fixed;left:0;right:0;z-index:7;bottom:calc(64px + env(safe-area-inset-bottom));display:flex;justify-content:center;pointer-events:none}
-#sponsorBar.su-auth{bottom:calc(12px + env(safe-area-inset-bottom))}
-#sponsorBar a{pointer-events:auto;display:flex;align-items:center;gap:10px;background:rgba(10,10,10,.92);color:#fff;text-decoration:none;border:1px solid var(--oro);border-radius:14px;padding:6px 14px 6px 6px;max-width:94%;box-shadow:0 6px 18px rgba(0,0,0,.3);transition:opacity .4s}
-#sponsorBar img{width:44px;height:44px;border-radius:10px;object-fit:contain;background:#fff}
-#sponsorBar .sp-t{font-size:10px;color:var(--oro);letter-spacing:1px;text-transform:uppercase}
-#sponsorBar .sp-n{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+body.has-sponsor{padding-bottom:124px}
+#sponsorBar{position:fixed;left:0;right:0;z-index:7;bottom:calc(58px + env(safe-area-inset-bottom));background:#0b0b0b;border-top:2px solid var(--oro)}
+#sponsorBar.su-auth{bottom:0;padding-bottom:env(safe-area-inset-bottom)}
+#sponsorBar{overflow:hidden;height:46px}
+#sponsorBar .sp-track{display:flex;width:max-content;height:46px;align-items:center;animation:sp-scroll linear infinite}
+#sponsorBar:active .sp-track{animation-play-state:paused}
+@keyframes sp-scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+#sponsorBar a{display:flex;align-items:center;gap:8px;color:#fff;text-decoration:none;padding:0 22px;height:46px;white-space:nowrap;border-right:1px solid rgba(212,165,55,.35)}
+#sponsorBar img{width:32px;height:32px;border-radius:6px;object-fit:contain;background:#fff}
+#sponsorBar .sp-t{font-size:10px;color:var(--oro);letter-spacing:1.5px;text-transform:uppercase}
+#sponsorBar .sp-n{font-weight:700;font-size:15px}
 h1,h2,h3{font-family:'Bebas Neue',sans-serif;letter-spacing:1px;font-weight:400}
 button{font:inherit;cursor:pointer;border:0;border-radius:10px;padding:11px 16px;font-weight:600}
 input,select,textarea{font:inherit;width:100%;padding:11px;border:1px solid #d1d5db;border-radius:10px;background:#fff;margin-bottom:10px}
@@ -569,22 +573,22 @@ function linkRisultati(c){
 const btnRisultati = c => `<a class="btn-ghost" href="${linkRisultati(c)}" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none;margin-top:8px;padding:11px 16px;border-radius:10px;font-weight:600">📊 Risultati su TrottoWeb</a>`;
 
 // ---------- SPONSOR ----------
-let sponsor = [], spIdx = 0, spTimer = null;
+let sponsor = [];
 async function caricaSponsor(){
   const { data } = await sb.from('sponsor').select('*').order('ordine').order('id');
-  sponsor = data || []; spIdx = 0; mostraSponsor();
-  clearInterval(spTimer);
-  if (sponsor.filter(x => x.attivo).length > 1) spTimer = setInterval(() => { spIdx++; mostraSponsor(true); }, 5000);
+  sponsor = data || []; mostraSponsor();
 }
-function mostraSponsor(anima){
+function mostraSponsor(){
   const att = sponsor.filter(x => x.attivo), bar = $('sponsorBar');
   if (!att.length) { bar.classList.add('hidden'); document.body.classList.remove('has-sponsor'); return; }
-  const x = att[spIdx % att.length];
-  const html = `<a href="${esc(x.link || '#')}" ${x.link ? 'target="_blank" rel="noopener"' : 'onclick="return false"'}>
-    ${x.logo ? `<img src="${x.logo}" alt="">` : ''}<div><div class="sp-t">Sponsor</div><div class="sp-n">${esc(x.nome)}</div></div></a>`;
+  const voce = x => `<a href="${esc(x.link || '#')}" ${x.link ? 'target="_blank" rel="noopener"' : 'onclick="return false"'}>
+    <span class="sp-t">Sponsor</span>${x.logo ? `<img src="${x.logo}" alt="">` : ''}<span class="sp-n">${esc(x.nome)}</span></a>`;
+  // ripeto la fila finché riempie lo schermo, poi la duplico per lo scorrimento continuo
+  let fila = att.map(voce).join(''); const rip = Math.max(1, Math.ceil(6 / att.length));
+  fila = fila.repeat(rip);
+  bar.innerHTML = `<div class="sp-track">${fila}${fila}</div>`;
   bar.classList.remove('hidden'); bar.classList.toggle('su-auth', !me); document.body.classList.add('has-sponsor');
-  if (anima && bar.firstElementChild) { bar.firstElementChild.style.opacity = 0; setTimeout(() => { bar.innerHTML = html; }, 350); }
-  else bar.innerHTML = html;
+  requestAnimationFrame(() => { const t = bar.firstElementChild; if (t) t.style.animationDuration = Math.max(12, t.scrollWidth / 2 / 45) + 's'; });
 }
 function adminSponsor(){
   return `<div class="card"><h3 style="font-size:22px">💼 Sponsor</h3>
