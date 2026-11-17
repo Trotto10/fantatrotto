@@ -97,6 +97,7 @@ td.n{text-align:right;font-weight:700}tr.me{background:#fff8e6}
   <header><div class="in"><div class="brand"><img src="" class="logoT10" alt="T10"><h1>FANTA<span>TROTTO</span></h1></div><div style="display:flex;gap:6px;align-items:center"><button class="user-chip" id="onlineBtn" onclick="toggleOnline()" style="border:0;color:#fff;cursor:pointer">🟢 …</button><span class="user-chip" id="chip"></span></div></div>
   <div id="onlinePanel" class="hidden" style="max-width:720px;margin:8px auto 0"></div></header>
   <main class="wrap">
+    <div id="compBar" style="margin-bottom:12px"></div>
     <div id="pg-home"></div>
     <div id="pg-corse" class="hidden"></div>
     <div id="pg-classifica" class="hidden"></div>
@@ -124,6 +125,8 @@ const LOGO = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBAUEBAY
 document.querySelectorAll('.logoT10').forEach(i => i.src = LOGO);
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let me = null, profilo = null, giornate = [], corse = [], miei = {}, scontri = [], utenti = {};
+let competizioni = [], partecipanti = [], compSel = null, iscritti = new Set();
+let giornateAll = [], corseAll = [], scontriAll = [], paginaAttuale = 'home';
 let CORSE_CLASSIFICA = 10;
 const NOMI_TURNO = {8:'Ottavi di finale', 4:'Quarti di finale', 2:'Semifinali', 1:'Finale'};
 const $ = id => document.getElementById(id);
@@ -163,14 +166,10 @@ async function login(e){
 async function register(e){
   e.preventDefault(); msg('authMsg','');
   const username = $('rUser').value.trim();
-  await caricaImpostazioni();
-  const st = statoIscrizioni();
-  if (st === 'prima') return msg('authMsg', 'Iscrizioni non ancora aperte: aprono ' + fmtDataOra(imp.iscrizioni_apertura));
-  if (st === 'chiuse') return msg('authMsg', 'Iscrizioni chiuse: il gioco è già iniziato. Potrai iscriverti alla prossima edizione.');
   const { data: libero } = await sb.rpc('username_libero', { u: username });
   if (libero === false) return msg('authMsg','Nome utente già preso');
   const { data, error } = await sb.auth.signUp({ email: $('rEmail').value.trim(), password: $('rPass').value, options: { data: { username }, emailRedirectTo: location.origin + location.pathname } });
-  if (error) return msg('authMsg', error.message.includes('registered') ? 'Email già registrata' : error.message.includes('Database error') ? 'Iscrizioni chiuse: non è possibile registrarsi ora.' : error.message);
+  if (error) return msg('authMsg', error.message.includes('registered') ? 'Email già registrata' : error.message);
   if (!data.session) { setTab('login'); msg('authMsg','Account creato! Controlla la tua email per confermare, poi accedi.','ok'); }
 }
 async function resetPass(e){
@@ -210,33 +209,89 @@ sb.auth.onAuthStateChange(async (ev, session) => {
   else { me = null; $('app').classList.add('hidden'); $('auth').classList.remove('hidden'); mostraIscrizioni(); }
 });
 
-// ---------- ISCRIZIONI ----------
-let imp = {};
+// ---------- COMPETIZIONI ----------
 const fmtDataOra = d => new Date(d).toLocaleString('it-IT', { weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
-async function caricaImpostazioni(){ const { data } = await sb.from('impostazioni').select('*').eq('id', 1).maybeSingle(); imp = data || {}; CORSE_CLASSIFICA = imp.corse_classifica || 10; }
-function statoIscrizioni(){
-  const now = new Date();
-  if (imp.iscrizioni_apertura && now < new Date(imp.iscrizioni_apertura)) return 'prima';
-  if (imp.iscrizioni_chiusura && now > new Date(imp.iscrizioni_chiusura)) return 'chiuse';
+function toLocalInput(d){ if (!d) return ''; const x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0,16); }
+function statoComp(c){
+  if (!c) return 'chiuse'; const now = new Date();
+  if (c.iscrizioni_apertura && now < new Date(c.iscrizioni_apertura)) return 'prima';
+  if (c.iscrizioni_chiusura && now > new Date(c.iscrizioni_chiusura)) return 'chiuse';
   return 'aperte';
 }
-async function mostraIscrizioni(){
-  await caricaImpostazioni();
-  const st = statoIscrizioni(), nome = esc(imp.nome_gioco || 'Iscrizioni');
-  const testo = { prima: `🕒 <b>${nome}</b>: iscrizioni dalle <b>${fmtDataOra(imp.iscrizioni_apertura)}</b>${imp.iscrizioni_chiusura?` alle <b>${fmtDataOra(imp.iscrizioni_chiusura)}</b>`:''}`,
-    aperte: imp.iscrizioni_chiusura ? `✅ <b>${nome}</b>: iscrizioni aperte fino alle <b>${fmtDataOra(imp.iscrizioni_chiusura)}</b>` : '',
-    chiuse: `⛔ <b>${nome}</b>: iscrizioni chiuse, gioco in corso` }[st];
-  $('iscrInfo').innerHTML = testo ? `<div class="msg ${st==='aperte'?'ok':'err'}">${testo}</div>` : '';
+function testoStato(c){
+  const st = statoComp(c);
+  if (st === 'prima') return `🕒 Iscrizioni dalle <b>${fmtDataOra(c.iscrizioni_apertura)}</b>${c.iscrizioni_chiusura?` alle <b>${fmtDataOra(c.iscrizioni_chiusura)}</b>`:''}`;
+  if (st === 'aperte') return `✅ Iscrizioni aperte${c.iscrizioni_chiusura?` fino alle <b>${fmtDataOra(c.iscrizioni_chiusura)}</b>`:''}`;
+  return '⛔ Iscrizioni chiuse, competizione in corso';
 }
-function toLocalInput(d){ if (!d) return ''; const x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0,16); }
-async function salvaIscrizioni(){
+const compCorrente = () => competizioni.find(c => c.id === compSel);
+async function mostraIscrizioni(){
+  const { data } = await sb.from('competizioni').select('*').order('created_at', { ascending:false });
+  const aperte = (data || []).filter(c => statoComp(c) !== 'chiuse');
+  $('iscrInfo').innerHTML = aperte.map(c => `<div class="msg ${statoComp(c)==='aperte'?'ok':'err'}">🏆 <b>${esc(c.nome)}</b>: ${testoStato(c).replace(/^\S+ /,'')}</div>`).join('');
+}
+function renderBarraComp(){
+  const c = compCorrente();
+  if (!c) { $('compBar').innerHTML = competizioni.length ? '' : '<div class="card muted" style="margin:0">Nessuna competizione attiva al momento.</div>'; return; }
+  const sono = iscritti.has(me.id), st = statoComp(c);
+  const azione = sono ? `<span class="badge b-aperta">✅ Iscritto</span>`
+    : st === 'aperte' ? `<button class="btn-oro" style="padding:8px 14px" onclick="iscrivitiComp()">Iscriviti</button>`
+    : `<span class="badge b-fine">Non iscritto</span>`;
+  const sel = competizioni.length > 1 ? `<select onchange="cambiaComp(this.value)" style="margin:0 0 8px">${competizioni.map(x => `<option value="${x.id}" ${x.id===compSel?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>` : '';
+  $('compBar').innerHTML = `<div class="card" style="margin:0">${sel}<div class="row" style="align-items:center"><div style="flex:3"><b style="font-family:'Bebas Neue';font-size:24px;color:var(--verde)">🏆 ${esc(c.nome)}</b>
+    <div class="muted" style="font-size:13px">${testoStato(c)} · ${iscritti.size} iscritti</div></div><div style="flex:0;white-space:nowrap">${azione}</div></div>
+    ${!sono && st !== 'aperte' ? `<p class="muted" style="font-size:13px;margin-top:6px">Puoi seguire classifica e pronostici, ma per giocare aspetta la prossima competizione con iscrizioni aperte.</p>` : ''}</div>`;
+}
+async function iscrivitiComp(){
+  const { error } = await sb.from('partecipanti').insert({ competizione_id: compSel, user_id: me.id });
+  if (error) return alert(error.message.includes('row-level') ? 'Iscrizioni chiuse per questa competizione' : error.message);
+  await carica(); go(paginaAttuale);
+}
+function cambiaComp(id){ compSel = +id; try { localStorage.setItem('ft_comp', id); } catch(e){} applicaComp(); go(paginaAttuale); }
+function applicaComp(){
+  const c = compCorrente();
+  CORSE_CLASSIFICA = c?.corse_classifica || 10;
+  giornate = giornateAll.filter(g => g.competizione_id === compSel);
+  const gid = new Set(giornate.map(g => g.id));
+  corse = corseAll.filter(x => gid.has(x.giornata_id));
+  scontri = scontriAll.filter(x => x.competizione_id === compSel);
+  iscritti = new Set(partecipanti.filter(x => x.competizione_id === compSel).map(x => x.user_id));
+  renderBarraComp();
+}
+async function salvaComp(){
   const a = $('iA').value, c = $('iC').value;
   if (a && c && new Date(c) <= new Date(a)) return msg('iMsg', 'La chiusura deve essere dopo l\'apertura');
   const nc = parseInt($('iN').value, 10);
   if (!(nc >= 1 && nc <= 100)) return msg('iMsg', 'Numero corse a classifica non valido');
-  const { error } = await sb.from('impostazioni').upsert({ id: 1, corse_classifica: nc, nome_gioco: $('iNome').value.trim() || null, iscrizioni_apertura: a ? new Date(a).toISOString() : null, iscrizioni_chiusura: c ? new Date(c).toISOString() : null });
+  const nome = $('iNome').value.trim(); if (!nome) return msg('iMsg', 'Scrivi il nome della competizione');
+  const { error } = await sb.from('competizioni').update({ nome, corse_classifica: nc, iscrizioni_apertura: a ? new Date(a).toISOString() : null, iscrizioni_chiusura: c ? new Date(c).toISOString() : null }).eq('id', compSel);
   if (error) return msg('iMsg', error.message);
-  await caricaImpostazioni(); renderAdmin(); msg('iMsg', 'Impostazioni salvate ✅', 'ok');
+  await carica(); renderAdmin(); msg('iMsg', 'Competizione salvata ✅', 'ok');
+}
+async function nuovaComp(){
+  const nome = prompt('Nome della nuova competizione (es. T10 Coppa Inverno):'); if (!nome?.trim()) return;
+  const { data, error } = await sb.from('competizioni').insert({ nome: nome.trim() }).select().single();
+  if (error) return alert(error.message);
+  compSel = data.id; try { localStorage.setItem('ft_comp', data.id); } catch(e){}
+  await carica(); renderAdmin(); alert('Competizione creata! Ora imposta le date di iscrizione e salva.');
+}
+async function eliminaComp(){
+  const c = compCorrente(); if (!c) return;
+  if (prompt(`ATTENZIONE: elimini "${c.nome}" con tutte le sue giornate, corse, pronostici e tabellone.\nScrivi ELIMINA per confermare:`) !== 'ELIMINA') return;
+  const { error } = await sb.from('competizioni').delete().eq('id', c.id);
+  if (error) return alert(error.message);
+  compSel = null; await carica(); renderAdmin();
+}
+async function togliPartecipante(uid){
+  if (!confirm(`Togliere ${utenti[uid]} da questa competizione?`)) return;
+  await sb.from('partecipanti').delete().eq('competizione_id', compSel).eq('user_id', uid);
+  await carica(); renderAdmin();
+}
+async function aggiungiPartecipante(){
+  const uid = $('addUser').value; if (!uid) return;
+  const { error } = await sb.from('partecipanti').insert({ competizione_id: compSel, user_id: uid });
+  if (error) return alert(error.message);
+  await carica(); renderAdmin();
 }
 
 // ---------- DATI ----------
@@ -255,14 +310,22 @@ async function carica(){
     sb.from('corse').select('*').order('orario'),
     sb.from('pronostici').select('*').eq('user_id', me.id)
   ]);
-  const [sc, pf] = await Promise.all([ sb.from('scontri').select('*').order('turno').order('slot'), sb.from('profiles').select('id,username') ]);
-  await caricaImpostazioni();
-  scontri = sc.data || []; utenti = {}; (pf.data || []).forEach(u => utenti[u.id] = u.username);
-  giornate = g.data || []; corse = c.data || []; miei = {};
+  const [sc, pf, co, pa] = await Promise.all([ sb.from('scontri').select('*').order('turno').order('slot'), sb.from('profiles').select('id,username'),
+    sb.from('competizioni').select('*').order('created_at', { ascending:false }), sb.from('partecipanti').select('*') ]);
+  scontriAll = sc.data || []; utenti = {}; (pf.data || []).forEach(u => utenti[u.id] = u.username);
+  giornateAll = g.data || []; corseAll = c.data || []; miei = {};
+  competizioni = co.data || []; partecipanti = pa.data || [];
   (pr.data || []).forEach(x => miei[x.corsa_id] = x);
+  if (!competizioni.some(x => x.id === compSel)) {
+    let salvata = null; try { salvata = +localStorage.getItem('ft_comp'); } catch(e){}
+    const mie = new Set(partecipanti.filter(x => x.user_id === me.id).map(x => x.competizione_id));
+    compSel = (competizioni.find(x => x.id === salvata) || competizioni.find(x => mie.has(x.id) && statoComp(x) === 'chiuse') || competizioni.find(x => statoComp(x) !== 'chiuse') || competizioni[0])?.id ?? null;
+  }
+  applicaComp();
 }
 
 function go(p){
+  paginaAttuale = p;
   ['home','corse','classifica','scontri','regole','admin'].forEach(x => $('pg-'+x).classList.toggle('hidden', x!==p));
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.p===p));
   ({home:renderHome, corse:renderCorse, classifica:renderClassifica, scontri:renderScontri, regole:renderRegole, admin:renderAdmin})[p]();
@@ -273,11 +336,11 @@ function go(p){
 async function renderHome(){
   const lista = await classificaCalcolata(); const i = lista.findIndex(r => r.user_id === me.id); const mio = lista[i] || { punti:0, corse_giocate:0, vincenti:0 };
   const prossime = corse.filter(c => stato(c)==='aperta').slice(0,3);
-  const daFare = prossime.filter(c => !miei[c.id]).length;
+  const daFare = iscritti.has(me.id) ? prossime.filter(c => !miei[c.id]).length : 0;
   $('pg-home').innerHTML = `
-    <div class="hero"><p>Ciao <b>${esc(profilo.username)}</b></p><div class="big">${mio.punti} PT</div>
+    ${!iscritti.has(me.id) ? '' : `<div class="hero"><p>Ciao <b>${esc(profilo.username)}</b></p><div class="big">${mio.punti} PT</div>
       <p>${i>=0 ? `${i+1}° posto su ${lista.length}` : ''}</p>
-      <div class="stats"><div><b>${mio.corse_giocate}</b>corse</div><div><b>${mio.vincenti}</b>vincenti</div><div><b>${i>=0?i+1:'-'}°</b>posizione</div></div></div>
+      <div class="stats"><div><b>${mio.corse_giocate}</b>corse</div><div><b>${mio.vincenti}</b>vincenti</div><div><b>${i>=0?i+1:'-'}°</b>posizione</div></div></div>`}
     <h2 style="color:var(--verde);font-size:24px;margin:6px 0">Prossime corse ${daFare?`<span class="badge b-chiusa">${daFare} da pronosticare</span>`:''}</h2>
     ${prossime.length ? prossime.map(cardCorsa).join('') : '<div class="card muted">Nessuna corsa aperta al momento. Torna più tardi!</div>'}
     <button class="btn full" onclick="go('corse')">Tutte le corse</button>
@@ -298,7 +361,10 @@ function cardCorsa(c){
   const lab = { aperta:`Chiude ${fmtOra(chiusura(c))}`, chiusa:'Pronostici chiusi', fine:'Arrivo ufficiale' }[s];
   const pos = n => n==p.primo?'1°':n==p.secondo?'2°':n==p.terzo?'3°':'';
   let corpo = '';
-  if (s === 'aperta') {
+  if (s === 'aperta' && !iscritti.has(me.id)) {
+    corpo = `<div class="msg err" style="margin:0">${statoComp(compCorrente())==='aperte' ? 'Iscriviti alla competizione (in alto) per pronosticare questa corsa.' : 'Non partecipi a questa competizione: le iscrizioni sono chiuse.'}</div>
+      <button class="btn-ghost full" style="margin-top:8px" onclick="vediPronostici(${c.id})">Pronostici di tutti</button><div id="tutti-${c.id}"></div>`;
+  } else if (s === 'aperta') {
     const num = (id, val, ph) => `<input type="number" inputmode="numeric" min="1" max="30" id="${id}-${c.id}" value="${val??''}" placeholder="${ph}" style="text-align:center;font-size:20px;font-weight:800">`;
     corpo = `<p class="muted" style="margin-bottom:6px">Scrivi il <b>numero</b> dei cavalli</p>
       <div class="picks"><div><label>1° 🥇</label>${num('p1',p.primo,'n°')}</div><div><label>2° 🥈</label>${num('p2',p.secondo,'n°')}</div><div><label>3° 🥉</label>${num('p3',p.terzo,'n°')}</div></div>
@@ -350,9 +416,9 @@ async function classificaCalcolata(giornataId){
   if (cs.length) { const { data } = await sb.from('pronostici_punti').select('*').in('corsa_id', cs.map(c => c.id)).limit(10000); rows = data || []; }
   const by = {};
   const S = (id, nome) => by[id] ??= { user_id:id, username: utenti[id] || nome || '?', punti:0, corse_giocate:0, vincenti:0, esatti:0, bonus:0, rotture:0, seq: cs.map(() => 0), ultimo: Infinity };
-  if (!giornataId) Object.keys(utenti).forEach(id => S(id));
+  if (!giornataId) iscritti.forEach(id => S(id));
   rows.forEach(r => {
-    const k = idx[r.corsa_id]; if (k == null) return;
+    const k = idx[r.corsa_id]; if (k == null || !iscritti.has(r.user_id)) return;
     const c = cs[k], u = S(r.user_id, r.username), a = c.arrivo, rot = c.rotture || [], e = effettivi(r, c);
     u.punti += r.punti; u.seq[k] = r.punti; u.corse_giocate++;
     e.forEach((n,i) => { if (n == null) return; if (rot.includes(n)) u.rotture++; else if (n == a[i]) u.esatti++; });
@@ -410,7 +476,7 @@ function renderScontri(){
   const finale = t[keys[keys.length-1]];
   const campione = finale.length === 1 && finale[0].vincitore;
   $('pg-scontri').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚔️ Scontri diretti</h2>
-    ${campione ? `<div class="hero" style="text-align:center"><p>Campione T10 Champions League</p><div class="big">🏆 ${nomeU(campione)}</div></div>` : ''}
+    ${campione ? `<div class="hero" style="text-align:center"><p>Campione ${esc(compCorrente()?.nome || '')}</p><div class="big">🏆 ${nomeU(campione)}</div></div>` : ''}
     ${keys.map(k => `<div class="card"><h3 style="font-size:24px;color:var(--verde)">${NOMI_TURNO[t[k].length] || ('Turno '+k)}</h3>${t[k].map(cardMatch).join('')}</div>`).join('')}`;
 }
 function adminScontri(){
@@ -438,14 +504,14 @@ async function generaTabellone(){
   const fatte = corse.filter(c => c.fase !== 'scontri' && c.arrivo?.length).length;
   if (!confirm(`Creare il tabellone con i primi ${N} della classifica?${fatte < CORSE_CLASSIFICA ? `\n\nAttenzione: corse a classifica concluse ${fatte}/${CORSE_CLASSIFICA}.` : ''}`)) return;
   const seeds = seedOrder(N), righe = [];
-  for (let i = 0; i < N/2; i++) righe.push({ turno: 1, slot: i, user1: lista[seeds[2*i]-1].user_id, user2: lista[seeds[2*i+1]-1].user_id });
+  for (let i = 0; i < N/2; i++) righe.push({ competizione_id: compSel, turno: 1, slot: i, user1: lista[seeds[2*i]-1].user_id, user2: lista[seeds[2*i+1]-1].user_id });
   const { error } = await sb.from('scontri').insert(righe);
   if (error) return msg('sMsg', error.message);
   await carica(); renderAdmin();
 }
 async function assegnaCorsa(k){
   const id = +$('sCorsa').value; if (!id) return msg('sMsg','Scegli la corsa');
-  const { error } = await sb.from('scontri').update({ corsa_id: id }).eq('turno', k);
+  const { error } = await sb.from('scontri').update({ corsa_id: id }).eq('turno', k).eq('competizione_id', compSel);
   if (error) return msg('sMsg', error.message);
   await carica(); renderAdmin(); msg('sMsg','Corsa assegnata ✅','ok');
 }
@@ -469,15 +535,15 @@ async function calcolaTurno(k){
     if (error) return msg('sMsg', error.message);
   }
   if (ms.length > 1) {
-    const righe = []; for (let j = 0; j < ms.length/2; j++) righe.push({ turno: k+1, slot: j, user1: vincitori[2*j], user2: vincitori[2*j+1] });
-    const { error } = await sb.from('scontri').upsert(righe, { onConflict: 'turno,slot' });
+    const righe = []; for (let j = 0; j < ms.length/2; j++) righe.push({ competizione_id: compSel, turno: k+1, slot: j, user1: vincitori[2*j], user2: vincitori[2*j+1] });
+    const { error } = await sb.from('scontri').upsert(righe, { onConflict: 'competizione_id,turno,slot' });
     if (error) return msg('sMsg', error.message);
   }
   await carica(); renderAdmin();
 }
 async function resetTabellone(){
   if (!confirm('Cancellare tutto il tabellone degli scontri diretti?')) return;
-  await sb.from('scontri').delete().gt('id', 0); await carica(); renderAdmin();
+  await sb.from('scontri').delete().eq('competizione_id', compSel); await carica(); renderAdmin();
 }
 
 // ---------- RISULTATI TROTTOWEB ----------
@@ -538,19 +604,31 @@ function renderRegole(){
 }
 
 // ---------- ADMIN ----------
+function adminComp(){
+  const c = compCorrente();
+  if (!c) return `<div class="card"><h3 style="font-size:22px">🏆 Competizioni</h3><p class="muted">Nessuna competizione. Creane una per iniziare.</p><button class="btn full" onclick="nuovaComp()">+ Nuova competizione</button></div>`;
+  const lista = [...iscritti].map(id => ({ id, n: utenti[id] || '?' })).sort((a,b) => a.n.localeCompare(b.n));
+  const altri = Object.keys(utenti).filter(id => !iscritti.has(id)).map(id => ({ id, n: utenti[id] })).sort((a,b) => a.n.localeCompare(b.n));
+  return `<div class="card"><h3 style="font-size:22px">🏆 Competizione: ${esc(c.nome)}</h3>
+    <p class="muted" style="margin-bottom:8px">Il pannello lavora sulla competizione scelta in alto. Tutti possono registrarsi al sito; alla competizione si iscrive solo chi lo fa tra apertura e chiusura.</p>
+    <label>Nome</label><input id="iNome" value="${esc(c.nome)}">
+    <label>Numero di corse a classifica (prima degli scontri diretti)</label><input type="number" id="iN" min="1" max="100" value="${c.corse_classifica || 10}">
+    <label>Apertura iscrizioni</label><input type="datetime-local" id="iA" value="${toLocalInput(c.iscrizioni_apertura)}">
+    <label>Chiusura iscrizioni</label><input type="datetime-local" id="iC" value="${toLocalInput(c.iscrizioni_chiusura)}">
+    <p class="muted">${testoStato(c)}</p>
+    <div id="iMsg"></div><button class="btn full" onclick="salvaComp()">Salva competizione</button>
+    <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">👥 Iscritti (${lista.length})</summary>
+      ${lista.map(u => `<div class="row" style="border-bottom:1px solid #eee;padding:6px 0"><div style="flex:3">${esc(u.n)}</div><button class="btn-ghost" style="flex:0;padding:4px 10px" onclick="togliPartecipante('${u.id}')">✖</button></div>`).join('') || '<p class="muted">Nessun iscritto.</p>'}
+      ${altri.length ? `<div class="row" style="margin-top:8px"><select id="addUser" style="margin:0"><option value="">Aggiungi a mano un utente…</option>${altri.map(u => `<option value="${u.id}">${esc(u.n)}</option>`).join('')}</select><button class="btn" style="flex:0" onclick="aggiungiPartecipante()">+</button></div>` : ''}
+    </details>
+    <div class="row" style="margin-top:12px"><button class="btn-ghost" onclick="nuovaComp()">+ Nuova competizione</button><button class="btn-rosso" style="flex:0" onclick="eliminaComp()">🗑</button></div></div>`;
+}
 function renderAdmin(){
   if (!profilo.is_admin) return;
   const optG = giornate.map(g => `<option value="${g.id}">${esc(g.nome)} (${fmtData(g.data)})</option>`).join('');
   const daChiudere = corse.filter(c => !c.arrivo?.length && new Date(c.orario) <= new Date());
   $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Pannello commissario</h2>
-  <div class="card"><h3 style="font-size:22px">📝 Impostazioni gioco</h3>
-    <p class="muted" style="margin-bottom:8px">Fuori da queste date nessuno può registrarsi. Lascia vuoto per non mettere limiti.</p>
-    <label>Nome del gioco</label><input id="iNome" placeholder="es. T10 Champions League" value="${esc(imp.nome_gioco||'')}">
-    <label>Numero di corse a classifica (prima degli scontri diretti)</label><input type="number" id="iN" min="1" max="100" value="${CORSE_CLASSIFICA}">
-    <label>Apertura iscrizioni</label><input type="datetime-local" id="iA" value="${toLocalInput(imp.iscrizioni_apertura)}">
-    <label>Chiusura iscrizioni</label><input type="datetime-local" id="iC" value="${toLocalInput(imp.iscrizioni_chiusura)}">
-    <p class="muted">Stato attuale: <b>${{prima:'non ancora aperte',aperte:'aperte',chiuse:'chiuse'}[statoIscrizioni()]}</b> · utenti iscritti: <b>${Object.keys(utenti).length}</b></p>
-    <div id="iMsg"></div><button class="btn full" onclick="salvaIscrizioni()">Salva impostazioni</button></div>
+  ${adminComp()}
   <div class="card"><h3 style="font-size:22px">1. Nuova giornata</h3>
     <label>Nome</label><input id="gNome" placeholder="es. Giornata 1 - Domenica di trotto">
     <label>Data</label><input type="date" id="gData">
@@ -577,7 +655,8 @@ function renderAdmin(){
 async function nuovaGiornata(){
   const nome = $('gNome').value.trim(), data = $('gData').value;
   if (!nome || !data) return msg('gMsg','Compila nome e data');
-  const { error } = await sb.from('giornate').insert({ nome, data });
+  if (!compSel) return msg('gMsg','Crea prima una competizione');
+  const { error } = await sb.from('giornate').insert({ nome, data, competizione_id: compSel });
   if (error) return msg('gMsg', error.message);
   await carica(); renderAdmin(); msg('gMsg','Giornata creata ✅','ok');
 }
