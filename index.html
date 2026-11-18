@@ -12,6 +12,16 @@
 :root{--verde:#0f3d2e;--verde2:#16523e;--oro:#d4a537;--crema:#f6f1e4;--testo:#1c1c1c;--grigio:#6b7280;--rosso:#b3261e;--card:#fff}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Inter,system-ui,sans-serif;background:var(--crema);color:var(--testo);min-height:100vh;padding-bottom:80px}
+header .area-sw{max-width:720px;margin:10px auto 0;display:flex;background:rgba(0,0,0,.25);border-radius:12px;padding:4px;gap:4px}
+header .area-sw button{flex:1;background:transparent;color:rgba(255,255,255,.75);padding:9px 6px;font-size:13px;letter-spacing:.5px;border-radius:9px}
+header .area-sw button.on{background:var(--oro);color:#111;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+body.area-mercato header{background:linear-gradient(135deg,#2b1a0b,#4a2f14)}
+body.area-mercato{--verde:#5a3a17}
+.avviso-mercato{background:#fff8e6;border:1px solid #e9c463;border-left:5px solid #b8862b;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:14px}
+.galleria{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:8px;border-radius:12px;margin-bottom:8px}
+.galleria img,.galleria video{flex:0 0 100%;width:100%;max-height:60vh;object-fit:cover;scroll-snap-align:center;border-radius:12px;background:#000}
+.thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.thumbs div{position:relative;width:64px;height:64px;border-radius:8px;background:#111 center/cover no-repeat}
+.thumbs button{position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;padding:0;background:var(--rosso);color:#fff;font-size:12px}
 #modal{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center}
 .modal-box{background:#fff;width:100%;max-width:560px;max-height:88vh;overflow:auto;border-radius:20px 20px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));position:relative}
 .modal-x{position:absolute;top:10px;right:12px;background:#f3f4f6;border-radius:50%;width:36px;height:36px;padding:0;font-size:18px}
@@ -120,6 +130,7 @@ td.n{text-align:right;font-weight:700}tr.me{background:#fff8e6}
 <!-- ================= APP ================= -->
 <section id="app" class="hidden">
   <header><div class="in"><div class="brand"><img src="" class="logoIcona" alt="FantaTrotto"><h1>FANTA<span>TROTTO</span></h1></div><div style="display:flex;gap:6px;align-items:center"><button class="user-chip" id="onlineBtn" onclick="toggleOnline()" style="border:0;color:#fff;cursor:pointer">🟢 …</button><span class="user-chip" id="chip"></span></div></div>
+  <div class="area-sw" id="areaSw"><button data-a="gioco" onclick="setArea('gioco')">🏆 FANTA GIOCO</button><button data-a="mercato" onclick="setArea('mercato')">🐴 MERCATO CAVALLI</button></div>
   <div id="onlinePanel" class="hidden" style="max-width:720px;margin:8px auto 0"></div></header>
   <main class="wrap">
     <div id="compBar" style="margin-bottom:12px"></div>
@@ -127,17 +138,19 @@ td.n{text-align:right;font-weight:700}tr.me{background:#fff8e6}
     <div id="pg-corse" class="hidden"></div>
     <div id="pg-classifica" class="hidden"></div>
     <div id="pg-mercato" class="hidden"></div>
+    <div id="pg-allevamenti" class="hidden"></div>
     <div id="pg-regole" class="hidden"></div>
     <div id="pg-scontri" class="hidden"></div>
     <div id="pg-admin" class="hidden"></div>
   </main>
   <nav id="nav">
-    <button data-p="home" class="on" onclick="go('home')"><span class="i">🏠</span>Home</button>
-    <button data-p="corse" onclick="go('corse')"><span class="i">🏇</span>Corse</button>
-    <button data-p="classifica" onclick="go('classifica')"><span class="i">🏆</span>Classifica</button>
-    <button data-p="scontri" onclick="go('scontri')"><span class="i">⚔️</span>Scontri</button>
-    <button data-p="mercato" onclick="go('mercato')"><span class="i">🐴</span>Mercato</button>
-    <button data-p="regole" onclick="go('regole')"><span class="i">📜</span>Regole</button>
+    <button data-p="home" data-area="gioco" class="on" onclick="go('home')"><span class="i">🏠</span>Home</button>
+    <button data-p="corse" data-area="gioco" onclick="go('corse')"><span class="i">🏇</span>Corse</button>
+    <button data-p="classifica" data-area="gioco" onclick="go('classifica')"><span class="i">🏆</span>Classifica</button>
+    <button data-p="scontri" data-area="gioco" onclick="go('scontri')"><span class="i">⚔️</span>Scontri</button>
+    <button data-p="mercato" data-area="mercato" onclick="go('mercato')"><span class="i">🐴</span>Annunci</button>
+    <button data-p="allevamenti" data-area="mercato" onclick="go('allevamenti')"><span class="i">🏡</span>Allevamenti</button>
+    <button data-p="regole" data-area="gioco" onclick="go('regole')"><span class="i">📜</span>Regole</button>
     <button data-p="admin" id="navAdmin" class="hidden" onclick="go('admin')"><span class="i">⚙️</span>Admin</button>
   </nav>
 </section>
@@ -159,6 +172,8 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let me = null, profilo = null, giornate = [], corse = [], miei = {}, scontri = [], utenti = {};
 let competizioni = [], partecipanti = [], compSel = null, iscritti = new Set();
 let giornateAll = [], corseAll = [], scontriAll = [], paginaAttuale = 'home';
+let area = (() => { try { return localStorage.getItem('ft_area') || 'gioco'; } catch(e) { return 'gioco'; } })();
+const PAGINE_MERCATO = ['mercato','allevamenti'];
 let CORSE_CLASSIFICA = 10;
 const NOMI_TURNO = {8:'Ottavi di finale', 4:'Quarti di finale', 2:'Semifinali', 1:'Finale'};
 const $ = id => document.getElementById(id);
@@ -336,7 +351,7 @@ async function avvia(){
   $('chip').innerHTML = `👤 ${esc(profilo.username)} · <a href="#" onclick="logout()" style="color:var(--oro)">esci</a>`;
   $('navAdmin').classList.toggle('hidden', !profilo.is_admin);
   avviaPresenza(); mostraSponsor();
-  await carica(); go('home');
+  await carica(); setArea(area);
 }
 async function carica(){
   const [g, c, pr] = await Promise.all([
@@ -360,11 +375,20 @@ async function carica(){
 
 function go(p){
   paginaAttuale = p;
-  ['home','corse','classifica','scontri','mercato','regole','admin'].forEach(x => $('pg-'+x).classList.toggle('hidden', x!==p));
+  if (p !== 'admin') { const a = PAGINE_MERCATO.includes(p) ? 'mercato' : 'gioco'; if (a !== area) { area = a; aggiornaArea(); } }
+  ['home','corse','classifica','scontri','mercato','allevamenti','regole','admin'].forEach(x => $('pg-'+x).classList.toggle('hidden', x!==p));
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.p===p));
-  ({home:renderHome, corse:renderCorse, classifica:renderClassifica, scontri:renderScontri, mercato:renderMercato, regole:renderRegole, admin:renderAdmin})[p]();
+  ({home:renderHome, corse:renderCorse, classifica:renderClassifica, scontri:renderScontri, mercato:renderMercato, allevamenti:renderAllevamenti, regole:renderRegole, admin:renderAdmin})[p]();
   scrollTo(0,0);
 }
+function aggiornaArea(){
+  try { localStorage.setItem('ft_area', area); } catch(e){}
+  document.body.classList.toggle('area-mercato', area === 'mercato');
+  document.querySelectorAll('#areaSw button').forEach(b => b.classList.toggle('on', b.dataset.a === area));
+  document.querySelectorAll('nav button[data-area]').forEach(b => b.classList.toggle('hidden', b.dataset.area !== area));
+  $('compBar').classList.toggle('hidden', area !== 'gioco');
+}
+function setArea(a){ area = a; aggiornaArea(); go(a === 'mercato' ? 'mercato' : 'home'); }
 
 // ---------- HOME ----------
 async function renderHome(){
@@ -656,7 +680,7 @@ function schedaSponsor(id){
     ${x.descrizione ? `<p style="margin-top:8px;white-space:pre-line">${esc(x.descrizione)}</p>` : ''}
     ${x.indirizzo ? `<p class="muted" style="margin-top:6px">📍 ${esc(x.indirizzo)}</p>` : ''}
     ${bottoniContatto(x)}
-    ${suoi.length ? `<h3 style="font-size:22px;color:var(--verde);margin-top:16px">🐴 Puledri in vendita (${suoi.length})</h3>${suoi.map(p => `<div class="row" style="border-bottom:1px solid #eee;padding:8px 0;cursor:pointer" onclick="schedaPuledro(${p.id})"><div style="flex:0 0 56px;height:56px;border-radius:10px;background:#111 center/cover no-repeat url('${p.foto?.[0]||''}')"></div><div style="flex:3"><b>${esc(p.nome)}</b><div class="muted" style="font-size:13px">${esc([p.anno, p.sesso].filter(Boolean).join(' · '))}</div></div></div>`).join('')}` : ''}`);
+    ${suoi.length ? `<h3 style="font-size:22px;color:var(--verde);margin-top:16px">🐴 Cavalli in vendita (${suoi.length})</h3>${suoi.map(p => `<div class="row" style="border-bottom:1px solid #eee;padding:8px 0;cursor:pointer" onclick="schedaPuledro(${p.id})"><div style="flex:0 0 56px;height:56px;border-radius:10px;background:#111 center/cover no-repeat url('${p.foto?.[0]||''}')"></div><div style="flex:3"><b>${esc(p.nome)}</b><div class="muted" style="font-size:13px">${esc([p.anno, p.sesso].filter(Boolean).join(' · '))}</div></div></div>`).join('')}` : ''}`);
 }
 
 // ---------- MERCATO PULEDRI ----------
@@ -664,6 +688,9 @@ function infoPuledro(p){ return [p.anno ? `Nato nel ${p.anno}` : '', p.sesso].fi
 function contattiPuledro(p){
   const al = sponsor.find(s => s.id === p.allevamento_id) || {};
   return { whatsapp: p.whatsapp || al.whatsapp, telefono: p.telefono || al.telefono, email: al.email, link: null, indirizzo: null };
+}
+function avvisoMercato(){
+  return `<div class="avviso-mercato">🐴 <b>Mercato cavalli</b> è una sezione <b>separata dal fanta gioco</b>: qui trovi annunci di cavalli in vendita da allevamenti e proprietà. Per informazioni e trattativa contatta direttamente la proprietà: FantaTrotto non interviene nella compravendita.</div>`;
 }
 function renderMercato(){
   const allev = sponsor.filter(s => s.attivo && s.tipo === 'allevamento');
@@ -673,33 +700,50 @@ function renderMercato(){
   const sp = p => sponsor.some(s => s.id === p.allevamento_id && s.tipo === 'allevamento' && s.attivo);
   lista.sort((a,b) => (a.venduto - b.venduto) || (sp(b) - sp(a)) || (new Date(b.created_at) - new Date(a.created_at)));
   const chip = (k,t) => `<button class="${filtroMercato===k?'on':''}" onclick="filtroMercato='${k}';renderMercato()">${t}</button>`;
-  $('pg-mercato').innerHTML = `<h2 style="color:var(--verde);font-size:30px">🐴 Mercato puledri</h2>
-    <p class="muted" style="margin-bottom:10px">Puledri in vendita: per informazioni e trattativa contatta direttamente il proprietario.</p>
+  $('pg-mercato').innerHTML = `<h2 style="color:var(--verde);font-size:30px">🐴 Cavalli in vendita</h2>
+    ${avvisoMercato()}
     ${allev.length ? `<div class="card"><b style="font-size:14px">🏅 Allevamenti sponsor</b><div class="allev" style="margin-top:8px">${allev.map(a => `<div onclick="schedaSponsor(${a.id})">${a.logo ? `<img src="${a.logo}">` : `<div class="ini">${iniziali(a.nome)}</div>`}<span>${esc(a.nome)}</span></div>`).join('')}</div></div>` : ''}
     <div class="chips">${chip('tutti','Tutti')}${chip('maschi','♂ Maschi')}${chip('femmine','♀ Femmine')}</div>
-    ${lista.length ? lista.map(cardPuledro).join('') : '<div class="card muted">Nessun puledro in vendita al momento.</div>'}
-    <div class="card" style="text-align:center"><p>Vuoi vendere un puledro o sponsorizzare il tuo allevamento?</p><p class="muted" style="font-size:13px;margin-top:4px">Contatta l'organizzazione di FantaTrotto.</p></div>`;
+    ${lista.length ? lista.map(cardPuledro).join('') : '<div class="card muted">Nessun cavallo in vendita al momento.</div>'}
+    <div class="card" style="text-align:center"><p>Vuoi pubblicare un annuncio o sponsorizzare il tuo allevamento?</p><p class="muted" style="font-size:13px;margin-top:4px">Contatta l'organizzazione di FantaTrotto.</p></div>`;
+}
+function renderAllevamenti(){
+  const allev = sponsor.filter(s => s.attivo && s.tipo === 'allevamento');
+  $('pg-allevamenti').innerHTML = `<h2 style="color:var(--verde);font-size:30px">🏡 Allevamenti</h2>${avvisoMercato()}
+    ${allev.length ? allev.map(a => { const n = puledri.filter(p => p.allevamento_id === a.id && !p.venduto).length; return `<div class="card">
+      <div class="row" style="align-items:center">${a.logo ? `<img src="${a.logo}" style="flex:0 0 72px;width:72px;height:72px;border-radius:50%;object-fit:contain;background:#fff;border:3px solid var(--oro)">` : `<div style="flex:0 0 72px;height:72px;border-radius:50%;background:#111;color:var(--oro);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue';font-size:30px;border:3px solid var(--oro)">${iniziali(a.nome)}</div>`}
+        <div style="flex:3"><span class="badge-all">🏅 ALLEVAMENTO SPONSOR</span><h3 style="font-size:26px;color:var(--verde)">${esc(a.nome)}</h3>${a.indirizzo ? `<div class="muted" style="font-size:13px">📍 ${esc(a.indirizzo)}</div>` : ''}</div></div>
+      ${a.descrizione ? `<p style="margin-top:8px;white-space:pre-line">${esc(a.descrizione)}</p>` : ''}
+      ${bottoniContatto(a)}
+      <button class="btn full" style="margin-top:8px" onclick="schedaSponsor(${a.id})">🐴 Cavalli in vendita (${n})</button></div>`; }).join('')
+      : '<div class="card muted">Nessun allevamento sponsor al momento.</div>'}`;
 }
 function cardPuledro(p){
-  const al = sponsor.find(s => s.id === p.allevamento_id);
+  const al = sponsor.find(s => s.id === p.allevamento_id), nf = (p.foto||[]).length;
   return `<div class="card pul" onclick="schedaPuledro(${p.id})" style="cursor:pointer">
-    <div class="ft" style="background-image:url('${p.foto?.[0] || ''}')">${p.venduto ? '<span class="venduto">VENDUTO</span>' : ''}${!p.foto?.length ? '<div style="color:#555;font-size:60px;text-align:center;line-height:200px">🐴</div>' : ''}</div>
+    <div class="ft" style="background-image:url('${p.foto?.[0] || ''}')">${p.venduto ? '<span class="venduto">VENDUTO</span>' : ''}${!nf ? '<div style="color:#555;font-size:60px;text-align:center;line-height:200px">🐴</div>' : ''}
+      <span style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.65);color:#fff;font-size:12px;padding:4px 8px;border-radius:8px">${nf ? `📷 ${nf}` : ''}${p.video || p.video_link ? ' 🎥 Video' : ''}</span></div>
     <div class="bd">${al?.tipo === 'allevamento' ? '<span class="badge-all">🏅 ALLEVAMENTO SPONSOR</span>' : ''}
       <h3>${esc(p.nome)}</h3>
       <p class="muted">${esc(infoPuledro(p))}${p.padre || p.madre ? ` · ${esc(p.padre || '?')} × ${esc(p.madre || '?')}` : ''}</p>
-      <p style="font-size:14px;margin-top:4px">🏠 ${esc(al?.nome || p.allevamento_nome || 'Privato')}</p>
-      ${p.venduto ? '' : '<p style="font-size:13px;margin-top:6px;color:var(--verde);font-weight:700">📞 Tocca per contattare il proprietario</p>'}</div></div>`;
+      <p style="font-size:14px;margin-top:4px">🏡 ${esc(al?.nome || p.allevamento_nome || 'Proprietà privata')}</p>
+      ${p.venduto ? '' : '<p style="font-size:13px;margin-top:6px;color:var(--verde);font-weight:700">📞 Tocca per contattare la proprietà</p>'}</div></div>`;
 }
 function schedaPuledro(id){
   const p = puledri.find(x => x.id === id); if (!p) return;
-  const al = sponsor.find(s => s.id === p.allevamento_id);
-  apriModal(`${(p.foto||[]).map(f => `<img src="${f}" style="width:100%;border-radius:12px;margin-bottom:8px">`).join('')}
+  const al = sponsor.find(s => s.id === p.allevamento_id), foto = p.foto || [];
+  const yt = youtubeIdM(p.video_link);
+  const media = foto.map(f => `<img src="${f}" loading="lazy">`).join('') + (p.video ? `<video src="${esc(p.video)}" controls playsinline preload="metadata"></video>` : '');
+  apriModal(`${media ? `<div class="galleria">${media}</div>${foto.length + (p.video?1:0) > 1 ? `<p class="muted" style="font-size:12px;text-align:center;margin:-4px 0 8px">⬅️ scorri per vedere ${foto.length} foto${p.video ? ' e il video' : ''} ➡️</p>` : ''}` : ''}
+    ${yt ? `<div style="position:relative;padding-top:56.25%;border-radius:12px;overflow:hidden;margin-bottom:8px;background:#000"><iframe src="https://www.youtube-nocookie.com/embed/${yt}?playsinline=1" style="position:absolute;inset:0;width:100%;height:100%;border:0" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>`
+      : p.video_link ? `<a class="btn-ghost full" style="display:block;text-align:center;text-decoration:none;padding:11px;border-radius:10px;margin-bottom:8px" href="${esc(p.video_link)}" target="_blank" rel="noopener">🎥 Guarda il video</a>` : ''}
     ${al?.tipo === 'allevamento' ? '<span class="badge-all">🏅 ALLEVAMENTO SPONSOR</span>' : ''}
     <h2 style="font-size:34px;color:var(--verde)">${esc(p.nome)} ${p.venduto ? '<span class="badge b-fine">VENDUTO</span>' : ''}</h2>
-    <table style="margin-top:6px">${[['Anno di nascita',p.anno],['Sesso',p.sesso],['Padre',p.padre],['Madre',p.madre],['Allevamento', al ? `<a href="#" onclick="schedaSponsor(${al.id});return false">${esc(al.nome)}</a>` : esc(p.allevamento_nome||'')]].filter(r => r[1]).map(r => `<tr><td class="muted">${r[0]}</td><td><b>${r[0]==='Allevamento'?r[1]:esc(r[1])}</b></td></tr>`).join('')}</table>
+    <table style="margin-top:6px">${[['Anno di nascita',p.anno],['Sesso',p.sesso],['Padre',p.padre],['Madre',p.madre],['Proprietà', al ? `<a href="#" onclick="schedaSponsor(${al.id});return false">${esc(al.nome)}</a>` : esc(p.allevamento_nome||'')]].filter(r => r[1]).map(r => `<tr><td class="muted">${r[0]}</td><td><b>${r[0]==='Proprietà'?r[1]:esc(r[1])}</b></td></tr>`).join('')}</table>
     ${p.descrizione ? `<p style="margin-top:10px;white-space:pre-line">${esc(p.descrizione)}</p>` : ''}
-    ${p.venduto ? '' : `<p style="margin-top:12px;font-weight:700">Interessato? Contatta direttamente il proprietario:</p>` + bottoniContatto(contattiPuledro(p), `Ciao, ti contatto da FantaTrotto per il puledro ${p.nome}`)}`);
+    ${p.venduto ? '' : `<p style="margin-top:12px;font-weight:700">Interessato? Contatta direttamente la proprietà:</p>` + bottoniContatto(contattiPuledro(p), `Ciao, vi contatto da FantaTrotto per il cavallo ${p.nome}`)}`);
 }
+function youtubeIdM(u){ const m = String(u||'').match(/(?:youtube\.com\/(?:watch\?v=|live\/|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/); return m ? m[1] : null; }
 
 // ---------- ADMIN SPONSOR E PULEDRI ----------
 function adminSponsor(){
@@ -725,29 +769,57 @@ function adminSponsor(){
     <div id="spMsg"></div><button class="btn full" onclick="salvaSponsor()">${editSponsor ? 'Salva modifiche' : 'Aggiungi sponsor'}</button>
     ${editSponsor ? `<button class="btn-ghost full" style="margin-top:6px" onclick="editSponsor=null;renderAdmin()">Annulla</button>` : ''}</div>`;
 }
+let fotoEdit = [], videoEdit = null;
 function adminPuledri(){
   const e = editPuledro ? puledri.find(x => x.id === editPuledro) || {} : {};
   const v = k => esc(e[k] ?? '');
   const allev = sponsor.filter(s => s.tipo === 'allevamento');
-  return `<div class="card"><h3 style="font-size:22px">🐴 Mercato puledri</h3>
+  return `<div class="card"><h3 style="font-size:22px">🐴 Annunci cavalli</h3>
     ${puledri.map(p => `<div class="row" style="border-bottom:1px solid #eee;padding:8px 0;align-items:center">
       <div style="flex:0 0 44px;height:44px;border-radius:8px;background:#111 center/cover no-repeat url('${p.foto?.[0]||''}')"></div>
-      <div style="flex:3"><b>${esc(p.nome)}</b><div class="muted" style="font-size:12px">${esc(p.allevamento_nome || sponsor.find(s => s.id === p.allevamento_id)?.nome || '')} ${p.venduto?'· VENDUTO':''}</div></div>
-      <button class="btn-ghost" style="flex:0;padding:6px 10px" onclick="editPuledro=${p.id};renderAdmin();document.getElementById('puNome').scrollIntoView({block:'center'})">✏️</button>
+      <div style="flex:3"><b>${esc(p.nome)}</b><div class="muted" style="font-size:12px">📷 ${(p.foto||[]).length}${p.video||p.video_link?' · 🎥':''} ${p.venduto?'· VENDUTO':''}</div></div>
+      <button class="btn-ghost" style="flex:0;padding:6px 10px" onclick="modificaPuledro(${p.id})">✏️</button>
       <button class="btn-ghost" style="flex:0;padding:6px 10px" title="Venduto" onclick="vendutoPuledro(${p.id}, ${!p.venduto})">${p.venduto ? '↺' : '✅'}</button>
       <button class="btn-rosso" style="flex:0;padding:6px 10px" onclick="eliminaPuledro(${p.id})">🗑</button></div>`).join('') || '<p class="muted">Nessun annuncio.</p>'}
     <h4 style="margin-top:12px">${editPuledro ? '✏️ Modifica: ' + v('nome') : 'Nuovo annuncio'}</h4>
-    <label>Nome del puledro</label><input id="puNome" value="${v('nome')}">
+    <label>Nome del cavallo</label><input id="puNome" value="${v('nome')}">
     <div class="row"><div><label>Anno di nascita</label><input id="puAnno" type="number" value="${v('anno')}" placeholder="2024"></div>
       <div><label>Sesso</label><select id="puSesso">${['','Maschio','Femmina','Castrone'].map(x => `<option ${e.sesso===x?'selected':''}>${x}</option>`).join('')}</select></div></div>
     <div class="row"><div><label>Padre</label><input id="puPadre" value="${v('padre')}"></div><div><label>Madre</label><input id="puMadre" value="${v('madre')}"></div></div>
-    <label>Allevamento</label><select id="puAll"><option value="">Privato / altro</option>${allev.map(a => `<option value="${a.id}" ${e.allevamento_id===a.id?'selected':''}>🏅 ${esc(a.nome)}</option>`).join('')}</select>
-    <label>Nome del proprietario/allevamento (se non è sponsor)</label><input id="puAllNome" value="${v('allevamento_nome')}">
+    <label>Allevamento sponsor</label><select id="puAll"><option value="">Nessuno (proprietà privata)</option>${allev.map(a => `<option value="${a.id}" ${e.allevamento_id===a.id?'selected':''}>🏅 ${esc(a.nome)}</option>`).join('')}</select>
+    <label>Nome della proprietà (se non è un allevamento sponsor)</label><input id="puAllNome" value="${v('allevamento_nome')}">
     <label>Descrizione</label><textarea id="puDesc" style="min-height:70px;font-family:inherit">${v('descrizione')}</textarea>
-    <div class="row"><div><label>WhatsApp proprietario</label><input id="puWa" inputmode="tel" value="${v('whatsapp')}" placeholder="vuoto = quello dell'allevamento"></div><div><label>Telefono</label><input id="puTel" inputmode="tel" value="${v('telefono')}"></div></div>
-    <label>Foto (fino a 3) ${editPuledro && e.foto?.length ? '— lascia vuoto per tenere quelle attuali' : ''}</label><input id="puFoto" type="file" accept="image/*" multiple>
+    <div class="row"><div><label>WhatsApp proprietà</label><input id="puWa" inputmode="tel" value="${v('whatsapp')}" placeholder="vuoto = quello dell'allevamento"></div><div><label>Telefono proprietà</label><input id="puTel" inputmode="tel" value="${v('telefono')}"></div></div>
+    <label>📷 Foto (puoi sceglierne più di una, massimo 12 in tutto)</label>
+    ${fotoEdit.length ? `<div class="thumbs">${fotoEdit.map((f,i) => `<div style="background-image:url('${f}')"><button onclick="fotoEdit.splice(${i},1);renderAdmin()">✕</button></div>`).join('')}</div>` : ''}
+    <input id="puFoto" type="file" accept="image/*" multiple>
+    <label>🎥 Video dal telefono (massimo 50 MB, meglio 30-60 secondi)</label>
+    ${videoEdit ? `<div class="row" style="margin-bottom:8px"><video src="${esc(videoEdit)}" style="flex:3;max-height:120px;border-radius:8px;background:#000" muted></video><button class="btn-rosso" style="flex:0" onclick="videoEdit=null;renderAdmin()">✕</button></div>` : ''}
+    <input id="puVideo" type="file" accept="video/*">
+    <label>…oppure link di un video YouTube</label><input id="puYt" value="${v('video_link')}" placeholder="https://youtu.be/…">
     <div id="puMsg"></div><button class="btn full" onclick="salvaPuledro()">${editPuledro ? 'Salva modifiche' : 'Pubblica annuncio'}</button>
-    ${editPuledro ? `<button class="btn-ghost full" style="margin-top:6px" onclick="editPuledro=null;renderAdmin()">Annulla</button>` : ''}</div>`;
+    ${editPuledro ? `<button class="btn-ghost full" style="margin-top:6px" onclick="editPuledro=null;fotoEdit=[];videoEdit=null;renderAdmin()">Annulla</button>` : ''}</div>`;
+}
+function modificaPuledro(id){
+  const p = puledri.find(x => x.id === id); editPuledro = id; fotoEdit = [...(p?.foto || [])]; videoEdit = p?.video || null;
+  renderAdmin(); document.getElementById('puNome').scrollIntoView({ block:'center' });
+}
+function fotoBlob(file, max = 1400, q = 0.82){
+  return new Promise((ok, ko) => {
+    const r = new FileReader(); r.onerror = ko;
+    r.onload = () => { const img = new Image(); img.onerror = ko; img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      c.toBlob(b => b ? ok(b) : ko(new Error('foto')), 'image/jpeg', q); }; img.src = r.result; };
+    r.readAsDataURL(file);
+  });
+}
+async function caricaFile(blob, ext, tipo){
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`;
+  const { error } = await sb.storage.from('mercato').upload(path, blob, { contentType: tipo, upsert: false });
+  if (error) throw error;
+  return sb.storage.from('mercato').getPublicUrl(path).data.publicUrl;
 }
 function rimpicciolisci(file, max = 200, q = 0.85){
   return new Promise((ok, ko) => {
@@ -772,15 +844,24 @@ async function salvaSponsor(){
   editSponsor = null; await caricaSponsor(); renderAdmin(); msg('spMsg', 'Salvato ✅', 'ok');
 }
 async function salvaPuledro(){
-  const nome = $('puNome').value.trim(); if (!nome) return msg('puMsg', 'Scrivi il nome del puledro');
+  const nome = $('puNome').value.trim(); if (!nome) return msg('puMsg', 'Scrivi il nome del cavallo');
   const row = { nome, anno: parseInt($('puAnno').value) || null, sesso: $('puSesso').value || null, padre: $('puPadre').value.trim() || null, madre: $('puMadre').value.trim() || null,
-    allevamento_id: +$('puAll').value || null, allevamento_nome: $('puAllNome').value.trim() || null, descrizione: $('puDesc').value.trim() || null, whatsapp: $('puWa').value.trim() || null, telefono: $('puTel').value.trim() || null };
-  const fs = [...$('puFoto').files].slice(0, 3);
-  if (fs.length) { try { row.foto = await Promise.all(fs.map(f => rimpicciolisci(f, 900, 0.78))); } catch(e) { return msg('puMsg', 'Foto non valida'); } }
-  msg('puMsg', 'Salvataggio…', 'ok');
+    allevamento_id: +$('puAll').value || null, allevamento_nome: $('puAllNome').value.trim() || null,
+    descrizione: $('puDesc').value.trim() || null, whatsapp: $('puWa').value.trim() || null, telefono: $('puTel').value.trim() || null,
+    video_link: $('puYt').value.trim() || null };
+  const nuove = [...$('puFoto').files], vid = $('puVideo').files[0];
+  if (fotoEdit.length + nuove.length > 12) return msg('puMsg', `Massimo 12 foto: ne hai ${fotoEdit.length} e ne stai aggiungendo ${nuove.length}`);
+  if (vid && vid.size > 50 * 1024 * 1024) return msg('puMsg', `Video troppo grande (${(vid.size/1048576).toFixed(0)} MB): massimo 50 MB. Accorcialo o usa un link YouTube.`);
+  try {
+    const urls = [];
+    for (let i = 0; i < nuove.length; i++) { msg('puMsg', `Carico foto ${i+1} di ${nuove.length}…`, 'ok'); urls.push(await caricaFile(await fotoBlob(nuove[i]), 'jpg', 'image/jpeg')); }
+    row.foto = [...fotoEdit, ...urls];
+    if (vid) { msg('puMsg', 'Carico il video… può volerci un minuto, non chiudere la pagina', 'ok'); const ext = (vid.name.split('.').pop() || 'mp4').toLowerCase(); row.video = await caricaFile(vid, ext, vid.type || 'video/mp4'); }
+    else row.video = videoEdit;
+  } catch(e) { return msg('puMsg', 'Errore nel caricamento: ' + (e.message || e)); }
   const q = editPuledro ? sb.from('puledri').update(row).eq('id', editPuledro) : sb.from('puledri').insert(row);
   const { error } = await q; if (error) return msg('puMsg', error.message);
-  editPuledro = null; await caricaSponsor(); renderAdmin(); msg('puMsg', 'Annuncio salvato ✅', 'ok');
+  editPuledro = null; fotoEdit = []; videoEdit = null; await caricaSponsor(); renderAdmin(); msg('puMsg', 'Annuncio salvato ✅', 'ok');
 }
 async function vendutoPuledro(id, venduto){ await sb.from('puledri').update({ venduto }).eq('id', id); await caricaSponsor(); renderAdmin(); }
 async function eliminaPuledro(id){ if (!confirm('Eliminare questo annuncio?')) return; await sb.from('puledri').delete().eq('id', id); await caricaSponsor(); renderAdmin(); }
@@ -856,10 +937,10 @@ function renderAdmin(){
   if (!profilo.is_admin) return;
   const optG = giornate.map(g => `<option value="${g.id}">${esc(g.nome)} (${fmtData(g.data)})</option>`).join('');
   const daChiudere = corse.filter(c => !c.arrivo?.length && new Date(c.orario) <= new Date());
-  $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Pannello commissario</h2>
+  if (area === 'mercato') { $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Gestione Mercato cavalli</h2>${adminPuledri()}${adminSponsor()}`; return; }
+  $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Pannello Fanta gioco</h2>
   ${adminComp()}
   ${adminSponsor()}
-  ${adminPuledri()}
   <div class="card"><h3 style="font-size:22px">1. Nuova giornata</h3>
     <label>Nome</label><input id="gNome" placeholder="es. Giornata 1 - Domenica di trotto">
     <label>Data</label><input type="date" id="gData">
