@@ -12,6 +12,16 @@
 :root{--verde:#0f3d2e;--verde2:#16523e;--oro:#d4a537;--crema:#f6f1e4;--testo:#1c1c1c;--grigio:#6b7280;--rosso:#b3261e;--card:#fff}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Inter,system-ui,sans-serif;background:var(--crema);color:var(--testo);min-height:100vh;padding-bottom:80px}
+#modal{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center}
+.modal-box{background:#fff;width:100%;max-width:560px;max-height:88vh;overflow:auto;border-radius:20px 20px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));position:relative}
+.modal-x{position:absolute;top:10px;right:12px;background:#f3f4f6;border-radius:50%;width:36px;height:36px;padding:0;font-size:18px}
+.contatti{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.contatti a{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px;border-radius:12px;text-decoration:none;font-weight:700;background:var(--verde);color:#fff}
+.contatti a.wa{background:#1fa855}.contatti a.alt{background:#fff;color:var(--verde);border:1px solid var(--verde)}
+.badge-all{display:inline-block;background:linear-gradient(90deg,#b8862b,#f5d77e);color:#111;font-size:11px;font-weight:800;padding:3px 8px;border-radius:8px;letter-spacing:.5px}
+.pul{overflow:hidden;padding:0}.pul .ft{height:200px;background:#111 center/cover no-repeat;position:relative}.pul .ft .venduto{position:absolute;top:12px;left:-30px;transform:rotate(-30deg);background:var(--rosso);color:#fff;font-weight:800;padding:4px 40px}
+.pul .bd{padding:14px}.pul h3{font-size:26px;color:var(--verde)}.pul .prz{font-family:'Bebas Neue';font-size:26px;color:#8a6200}
+.chips{display:flex;gap:6px;overflow:auto;margin-bottom:10px}.chips button{background:#fff;border:1px solid #d1d5db;color:var(--testo);padding:8px 12px;white-space:nowrap}.chips button.on{background:var(--verde);color:#fff;border-color:var(--verde)}
+.allev{display:flex;gap:10px;overflow:auto;padding-bottom:4px}.allev div{flex:0 0 92px;text-align:center;cursor:pointer}.allev img,.allev .ini{width:72px;height:72px;border-radius:50%;object-fit:contain;background:#fff;border:3px solid var(--oro);margin:0 auto 4px;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue';font-size:28px;color:var(--oro);background:#111}.allev img{background:#fff}.allev span{font-size:12px;font-weight:700}
 body.has-sponsor{padding-bottom:172px}
 #sponsorBar{position:fixed;left:0;right:0;z-index:7;bottom:calc(58px + env(safe-area-inset-bottom));height:88px;overflow:hidden;
   background:linear-gradient(90deg,#8a5f12,#e9c463 25%,#fff0b8 50%,#e9c463 75%,#8a5f12);border-top:3px solid #111;border-bottom:1px solid #111;box-shadow:0 -6px 18px rgba(0,0,0,.35)}
@@ -116,6 +126,7 @@ td.n{text-align:right;font-weight:700}tr.me{background:#fff8e6}
     <div id="pg-home"></div>
     <div id="pg-corse" class="hidden"></div>
     <div id="pg-classifica" class="hidden"></div>
+    <div id="pg-mercato" class="hidden"></div>
     <div id="pg-regole" class="hidden"></div>
     <div id="pg-scontri" class="hidden"></div>
     <div id="pg-admin" class="hidden"></div>
@@ -125,12 +136,14 @@ td.n{text-align:right;font-weight:700}tr.me{background:#fff8e6}
     <button data-p="corse" onclick="go('corse')"><span class="i">🏇</span>Corse</button>
     <button data-p="classifica" onclick="go('classifica')"><span class="i">🏆</span>Classifica</button>
     <button data-p="scontri" onclick="go('scontri')"><span class="i">⚔️</span>Scontri</button>
+    <button data-p="mercato" onclick="go('mercato')"><span class="i">🐴</span>Mercato</button>
     <button data-p="regole" onclick="go('regole')"><span class="i">📜</span>Regole</button>
     <button data-p="admin" id="navAdmin" class="hidden" onclick="go('admin')"><span class="i">⚙️</span>Admin</button>
   </nav>
 </section>
 
 <div id="sponsorBar" class="hidden"></div>
+<div id="modal" class="hidden" onclick="if(event.target===this)chiudiModal()"><div class="modal-box" id="modalBox"></div></div>
 
 <script>
 // ===== CONFIGURAZIONE: incolla qui i tuoi dati Supabase =====
@@ -345,9 +358,9 @@ async function carica(){
 
 function go(p){
   paginaAttuale = p;
-  ['home','corse','classifica','scontri','regole','admin'].forEach(x => $('pg-'+x).classList.toggle('hidden', x!==p));
+  ['home','corse','classifica','scontri','mercato','regole','admin'].forEach(x => $('pg-'+x).classList.toggle('hidden', x!==p));
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.p===p));
-  ({home:renderHome, corse:renderCorse, classifica:renderClassifica, scontri:renderScontri, regole:renderRegole, admin:renderAdmin})[p]();
+  ({home:renderHome, corse:renderCorse, classifica:renderClassifica, scontri:renderScontri, mercato:renderMercato, regole:renderRegole, admin:renderAdmin})[p]();
   scrollTo(0,0);
 }
 
@@ -602,57 +615,173 @@ function linkRisultati(c){
 const btnRisultati = c => `<a class="btn-ghost" href="${linkRisultati(c)}" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none;margin-top:8px;padding:11px 16px;border-radius:10px;font-weight:600">📊 Risultati su TrottoWeb</a>`;
 
 // ---------- SPONSOR ----------
-let sponsor = [];
+let sponsor = [], puledri = [], filtroMercato = 'tutti', editSponsor = null, editPuledro = null;
+const iniziali = n => esc(String(n||'').split(/\s+/).map(w => w[0]).join('').slice(0,2).toUpperCase());
+const numWa = t => { let d = String(t||'').replace(/\D/g,''); if (d.startsWith('00')) d = d.slice(2); if (d.length <= 10 && d.startsWith('3')) d = '39' + d; return d; };
+function bottoniContatto(x, testo){
+  const b = [];
+  if (x.whatsapp) b.push(`<a class="wa" href="https://wa.me/${numWa(x.whatsapp)}?text=${encodeURIComponent(testo || 'Ciao, ti contatto da FantaTrotto')}" target="_blank" rel="noopener">💬 WhatsApp</a>`);
+  if (x.telefono) b.push(`<a href="tel:${esc(String(x.telefono).replace(/\s/g,''))}">📞 Chiama</a>`);
+  if (x.email) b.push(`<a class="alt" href="mailto:${esc(x.email)}">✉️ Email</a>`);
+  if (x.link) b.push(`<a class="alt" href="${esc(x.link)}" target="_blank" rel="noopener">🌐 Sito / Social</a>`);
+  if (x.indirizzo) b.push(`<a class="alt" href="https://maps.google.com/?q=${encodeURIComponent(x.indirizzo)}" target="_blank" rel="noopener">📍 Indirizzo</a>`);
+  return b.length ? `<div class="contatti">${b.join('')}</div>` : '<p class="muted" style="margin-top:10px">Nessun contatto inserito.</p>';
+}
+function apriModal(html){ $('modalBox').innerHTML = `<button class="modal-x" onclick="chiudiModal()">✕</button>` + html; $('modal').classList.remove('hidden'); }
+function chiudiModal(){ $('modal').classList.add('hidden'); }
 async function caricaSponsor(){
-  const { data } = await sb.from('sponsor').select('*').order('ordine').order('id');
-  sponsor = data || []; mostraSponsor();
+  const [sp, pu] = await Promise.all([ sb.from('sponsor').select('*').order('ordine').order('id'), sb.from('puledri').select('*').order('created_at', { ascending:false }) ]);
+  sponsor = sp.data || []; puledri = pu.data || []; mostraSponsor();
 }
 function mostraSponsor(){
   const att = sponsor.filter(x => x.attivo), bar = $('sponsorBar');
   if (!att.length) { bar.classList.add('hidden'); document.body.classList.remove('has-sponsor'); return; }
-  const voce = x => `<a href="${esc(x.link || '#')}" ${x.link ? 'target="_blank" rel="noopener"' : 'onclick="return false"'}>
-    ${x.logo ? `<img src="${x.logo}" alt="">` : `<span class="sp-ini">${esc(x.nome.split(/\s+/).map(w => w[0]).join('').slice(0,2).toUpperCase())}</span>`}<span><span class="sp-t">Sponsor ufficiale</span><span class="sp-n">${esc(x.nome)}</span></span></a>`;
-  // ripeto la fila finché riempie lo schermo, poi la duplico per lo scorrimento continuo
+  const voce = x => `<a href="#" onclick="schedaSponsor(${x.id});return false">
+    ${x.logo ? `<img src="${x.logo}" alt="">` : `<span class="sp-ini">${iniziali(x.nome)}</span>`}<span><span class="sp-t">${x.tipo === 'allevamento' ? 'Allevamento sponsor' : 'Sponsor ufficiale'}</span><span class="sp-n">${esc(x.nome)}</span></span></a>`;
   let fila = att.map(voce).join(''); const rip = Math.max(1, Math.ceil(6 / att.length));
   fila = fila.repeat(rip);
   bar.innerHTML = `<div class="sp-track">${fila}${fila}</div>`;
   bar.classList.remove('hidden'); bar.classList.toggle('su-auth', !me); document.body.classList.add('has-sponsor');
   requestAnimationFrame(() => { const t = bar.firstElementChild; if (t) t.style.animationDuration = Math.max(14, t.scrollWidth / 2 / 55) + 's'; });
 }
+function schedaSponsor(id){
+  const x = sponsor.find(s => s.id === id); if (!x) return;
+  const suoi = puledri.filter(p => p.allevamento_id === id && !p.venduto);
+  apriModal(`<div style="text-align:center">
+      ${x.logo ? `<img src="${x.logo}" style="width:110px;height:110px;border-radius:50%;object-fit:contain;border:4px solid var(--oro);background:#fff">` : `<div style="width:110px;height:110px;border-radius:50%;margin:0 auto;background:#111;color:var(--oro);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue';font-size:44px;border:4px solid var(--oro)">${iniziali(x.nome)}</div>`}
+      <div style="margin-top:8px"><span class="badge-all">${x.tipo === 'allevamento' ? '🐎 ALLEVAMENTO SPONSOR' : '⭐ SPONSOR UFFICIALE'}</span></div>
+      <h2 style="font-size:34px;color:var(--verde);margin-top:6px">${esc(x.nome)}</h2></div>
+    ${x.descrizione ? `<p style="margin-top:8px;white-space:pre-line">${esc(x.descrizione)}</p>` : ''}
+    ${x.indirizzo ? `<p class="muted" style="margin-top:6px">📍 ${esc(x.indirizzo)}</p>` : ''}
+    ${bottoniContatto(x)}
+    ${suoi.length ? `<h3 style="font-size:22px;color:var(--verde);margin-top:16px">🐴 Puledri in vendita (${suoi.length})</h3>${suoi.map(p => `<div class="row" style="border-bottom:1px solid #eee;padding:8px 0;cursor:pointer" onclick="schedaPuledro(${p.id})"><div style="flex:0 0 56px;height:56px;border-radius:10px;background:#111 center/cover no-repeat url('${p.foto?.[0]||''}')"></div><div style="flex:3"><b>${esc(p.nome)}</b><div class="muted" style="font-size:13px">${esc([p.anno, p.sesso].filter(Boolean).join(' · '))}</div></div></div>`).join('')}` : ''}`);
+}
+
+// ---------- MERCATO PULEDRI ----------
+function infoPuledro(p){ return [p.anno ? `Nato nel ${p.anno}` : '', p.sesso].filter(Boolean).join(' · '); }
+function contattiPuledro(p){
+  const al = sponsor.find(s => s.id === p.allevamento_id) || {};
+  return { whatsapp: p.whatsapp || al.whatsapp, telefono: p.telefono || al.telefono, email: al.email, link: null, indirizzo: null };
+}
+function renderMercato(){
+  const allev = sponsor.filter(s => s.attivo && s.tipo === 'allevamento');
+  let lista = puledri.slice();
+  if (filtroMercato === 'maschi') lista = lista.filter(p => /^(maschio|castrone)/i.test(p.sesso||''));
+  if (filtroMercato === 'femmine') lista = lista.filter(p => /^femmina/i.test(p.sesso||''));
+  const sp = p => sponsor.some(s => s.id === p.allevamento_id && s.tipo === 'allevamento' && s.attivo);
+  lista.sort((a,b) => (a.venduto - b.venduto) || (sp(b) - sp(a)) || (new Date(b.created_at) - new Date(a.created_at)));
+  const chip = (k,t) => `<button class="${filtroMercato===k?'on':''}" onclick="filtroMercato='${k}';renderMercato()">${t}</button>`;
+  $('pg-mercato').innerHTML = `<h2 style="color:var(--verde);font-size:30px">🐴 Mercato puledri</h2>
+    <p class="muted" style="margin-bottom:10px">Puledri in vendita: per informazioni e trattativa contatta direttamente il proprietario.</p>
+    ${allev.length ? `<div class="card"><b style="font-size:14px">🏅 Allevamenti sponsor</b><div class="allev" style="margin-top:8px">${allev.map(a => `<div onclick="schedaSponsor(${a.id})">${a.logo ? `<img src="${a.logo}">` : `<div class="ini">${iniziali(a.nome)}</div>`}<span>${esc(a.nome)}</span></div>`).join('')}</div></div>` : ''}
+    <div class="chips">${chip('tutti','Tutti')}${chip('maschi','♂ Maschi')}${chip('femmine','♀ Femmine')}</div>
+    ${lista.length ? lista.map(cardPuledro).join('') : '<div class="card muted">Nessun puledro in vendita al momento.</div>'}
+    <div class="card" style="text-align:center"><p>Vuoi vendere un puledro o sponsorizzare il tuo allevamento?</p><p class="muted" style="font-size:13px;margin-top:4px">Contatta l'organizzazione di FantaTrotto.</p></div>`;
+}
+function cardPuledro(p){
+  const al = sponsor.find(s => s.id === p.allevamento_id);
+  return `<div class="card pul" onclick="schedaPuledro(${p.id})" style="cursor:pointer">
+    <div class="ft" style="background-image:url('${p.foto?.[0] || ''}')">${p.venduto ? '<span class="venduto">VENDUTO</span>' : ''}${!p.foto?.length ? '<div style="color:#555;font-size:60px;text-align:center;line-height:200px">🐴</div>' : ''}</div>
+    <div class="bd">${al?.tipo === 'allevamento' ? '<span class="badge-all">🏅 ALLEVAMENTO SPONSOR</span>' : ''}
+      <h3>${esc(p.nome)}</h3>
+      <p class="muted">${esc(infoPuledro(p))}${p.padre || p.madre ? ` · ${esc(p.padre || '?')} × ${esc(p.madre || '?')}` : ''}</p>
+      <p style="font-size:14px;margin-top:4px">🏠 ${esc(al?.nome || p.allevamento_nome || 'Privato')}</p>
+      ${p.venduto ? '' : '<p style="font-size:13px;margin-top:6px;color:var(--verde);font-weight:700">📞 Tocca per contattare il proprietario</p>'}</div></div>`;
+}
+function schedaPuledro(id){
+  const p = puledri.find(x => x.id === id); if (!p) return;
+  const al = sponsor.find(s => s.id === p.allevamento_id);
+  apriModal(`${(p.foto||[]).map(f => `<img src="${f}" style="width:100%;border-radius:12px;margin-bottom:8px">`).join('')}
+    ${al?.tipo === 'allevamento' ? '<span class="badge-all">🏅 ALLEVAMENTO SPONSOR</span>' : ''}
+    <h2 style="font-size:34px;color:var(--verde)">${esc(p.nome)} ${p.venduto ? '<span class="badge b-fine">VENDUTO</span>' : ''}</h2>
+    <table style="margin-top:6px">${[['Anno di nascita',p.anno],['Sesso',p.sesso],['Padre',p.padre],['Madre',p.madre],['Allevamento', al ? `<a href="#" onclick="schedaSponsor(${al.id});return false">${esc(al.nome)}</a>` : esc(p.allevamento_nome||'')]].filter(r => r[1]).map(r => `<tr><td class="muted">${r[0]}</td><td><b>${r[0]==='Allevamento'?r[1]:esc(r[1])}</b></td></tr>`).join('')}</table>
+    ${p.descrizione ? `<p style="margin-top:10px;white-space:pre-line">${esc(p.descrizione)}</p>` : ''}
+    ${p.venduto ? '' : `<p style="margin-top:12px;font-weight:700">Interessato? Contatta direttamente il proprietario:</p>` + bottoniContatto(contattiPuledro(p), `Ciao, ti contatto da FantaTrotto per il puledro ${p.nome}`)}`);
+}
+
+// ---------- ADMIN SPONSOR E PULEDRI ----------
 function adminSponsor(){
-  return `<div class="card"><h3 style="font-size:22px">💼 Sponsor</h3>
-    <p class="muted" style="margin-bottom:8px">Compaiono sempre in basso nel sito e nella pagina di accesso, a rotazione ogni 5 secondi.</p>
+  const e = editSponsor ? sponsor.find(x => x.id === editSponsor) || {} : {};
+  const v = k => esc(e[k] || '');
+  return `<div class="card"><h3 style="font-size:22px">💼 Sponsor e allevamenti</h3>
+    <p class="muted" style="margin-bottom:8px">Scorrono sempre in basso nel sito; toccandoli si apre la loro scheda con i contatti.</p>
     ${sponsor.map(x => `<div class="row" style="border-bottom:1px solid #eee;padding:8px 0;align-items:center">
       ${x.logo ? `<img src="${x.logo}" style="flex:0 0 40px;width:40px;height:40px;border-radius:8px;object-fit:contain;background:#f3f4f6">` : '<div style="flex:0 0 40px"></div>'}
-      <div style="flex:3"><b>${esc(x.nome)}</b><div class="muted" style="font-size:12px;word-break:break-all">${esc(x.link || 'nessun link')}</div></div>
+      <div style="flex:3"><b>${esc(x.nome)}</b><div class="muted" style="font-size:12px">${x.tipo === 'allevamento' ? '🐎 Allevamento' : '⭐ Sponsor'}${x.whatsapp||x.telefono ? ' · 📞' : ''}</div></div>
+      <button class="btn-ghost" style="flex:0;padding:6px 10px" onclick="editSponsor=${x.id};renderAdmin();document.getElementById('spNome').scrollIntoView({block:'center'})">✏️</button>
       <button class="btn-ghost" style="flex:0;padding:6px 10px" onclick="toggleSponsor(${x.id}, ${!x.attivo})">${x.attivo ? '👁' : '🚫'}</button>
       <button class="btn-rosso" style="flex:0;padding:6px 10px" onclick="eliminaSponsor(${x.id})">🗑</button></div>`).join('') || '<p class="muted">Nessuno sponsor.</p>'}
-    <h4 style="margin-top:12px">Nuovo sponsor</h4>
-    <label>Nome</label><input id="spNome" placeholder="es. Gommista Rossi">
-    <label>Link (sito, Instagram, WhatsApp… facoltativo)</label><input id="spLink" type="url" placeholder="https://…">
-    <label>Logo (immagine dal telefono)</label><input id="spLogo" type="file" accept="image/*">
-    <div id="spMsg"></div><button class="btn full" onclick="nuovoSponsor()">Aggiungi sponsor</button></div>`;
+    <h4 style="margin-top:12px">${editSponsor ? '✏️ Modifica: ' + v('nome') : 'Nuovo sponsor'}</h4>
+    <label>Tipo</label><select id="spTipo"><option value="sponsor">⭐ Sponsor</option><option value="allevamento" ${e.tipo==='allevamento'?'selected':''}>🐎 Allevamento sponsor</option></select>
+    <label>Nome</label><input id="spNome" value="${v('nome')}" placeholder="es. Gommista Rossi">
+    <label>Descrizione (cosa fa, offerte…)</label><textarea id="spDesc" style="min-height:70px;font-family:inherit">${v('descrizione')}</textarea>
+    <div class="row"><div><label>WhatsApp</label><input id="spWa" inputmode="tel" value="${v('whatsapp')}" placeholder="333 1234567"></div><div><label>Telefono</label><input id="spTel" inputmode="tel" value="${v('telefono')}" placeholder="081 1234567"></div></div>
+    <label>Email</label><input id="spMail" type="email" value="${v('email')}">
+    <label>Indirizzo</label><input id="spInd" value="${v('indirizzo')}" placeholder="Via…, Città">
+    <label>Sito o pagina social</label><input id="spLink" value="${v('link')}" placeholder="https://…">
+    <label>Logo ${editSponsor && e.logo ? '(lascia vuoto per tenere quello attuale)' : ''}</label><input id="spLogo" type="file" accept="image/*">
+    <div id="spMsg"></div><button class="btn full" onclick="salvaSponsor()">${editSponsor ? 'Salva modifiche' : 'Aggiungi sponsor'}</button>
+    ${editSponsor ? `<button class="btn-ghost full" style="margin-top:6px" onclick="editSponsor=null;renderAdmin()">Annulla</button>` : ''}</div>`;
 }
-function rimpicciolisci(file, max = 200){
+function adminPuledri(){
+  const e = editPuledro ? puledri.find(x => x.id === editPuledro) || {} : {};
+  const v = k => esc(e[k] ?? '');
+  const allev = sponsor.filter(s => s.tipo === 'allevamento');
+  return `<div class="card"><h3 style="font-size:22px">🐴 Mercato puledri</h3>
+    ${puledri.map(p => `<div class="row" style="border-bottom:1px solid #eee;padding:8px 0;align-items:center">
+      <div style="flex:0 0 44px;height:44px;border-radius:8px;background:#111 center/cover no-repeat url('${p.foto?.[0]||''}')"></div>
+      <div style="flex:3"><b>${esc(p.nome)}</b><div class="muted" style="font-size:12px">${esc(p.allevamento_nome || sponsor.find(s => s.id === p.allevamento_id)?.nome || '')} ${p.venduto?'· VENDUTO':''}</div></div>
+      <button class="btn-ghost" style="flex:0;padding:6px 10px" onclick="editPuledro=${p.id};renderAdmin();document.getElementById('puNome').scrollIntoView({block:'center'})">✏️</button>
+      <button class="btn-ghost" style="flex:0;padding:6px 10px" title="Venduto" onclick="vendutoPuledro(${p.id}, ${!p.venduto})">${p.venduto ? '↺' : '✅'}</button>
+      <button class="btn-rosso" style="flex:0;padding:6px 10px" onclick="eliminaPuledro(${p.id})">🗑</button></div>`).join('') || '<p class="muted">Nessun annuncio.</p>'}
+    <h4 style="margin-top:12px">${editPuledro ? '✏️ Modifica: ' + v('nome') : 'Nuovo annuncio'}</h4>
+    <label>Nome del puledro</label><input id="puNome" value="${v('nome')}">
+    <div class="row"><div><label>Anno di nascita</label><input id="puAnno" type="number" value="${v('anno')}" placeholder="2024"></div>
+      <div><label>Sesso</label><select id="puSesso">${['','Maschio','Femmina','Castrone'].map(x => `<option ${e.sesso===x?'selected':''}>${x}</option>`).join('')}</select></div></div>
+    <div class="row"><div><label>Padre</label><input id="puPadre" value="${v('padre')}"></div><div><label>Madre</label><input id="puMadre" value="${v('madre')}"></div></div>
+    <label>Allevamento</label><select id="puAll"><option value="">Privato / altro</option>${allev.map(a => `<option value="${a.id}" ${e.allevamento_id===a.id?'selected':''}>🏅 ${esc(a.nome)}</option>`).join('')}</select>
+    <label>Nome del proprietario/allevamento (se non è sponsor)</label><input id="puAllNome" value="${v('allevamento_nome')}">
+    <label>Descrizione</label><textarea id="puDesc" style="min-height:70px;font-family:inherit">${v('descrizione')}</textarea>
+    <div class="row"><div><label>WhatsApp proprietario</label><input id="puWa" inputmode="tel" value="${v('whatsapp')}" placeholder="vuoto = quello dell'allevamento"></div><div><label>Telefono</label><input id="puTel" inputmode="tel" value="${v('telefono')}"></div></div>
+    <label>Foto (fino a 3) ${editPuledro && e.foto?.length ? '— lascia vuoto per tenere quelle attuali' : ''}</label><input id="puFoto" type="file" accept="image/*" multiple>
+    <div id="puMsg"></div><button class="btn full" onclick="salvaPuledro()">${editPuledro ? 'Salva modifiche' : 'Pubblica annuncio'}</button>
+    ${editPuledro ? `<button class="btn-ghost full" style="margin-top:6px" onclick="editPuledro=null;renderAdmin()">Annulla</button>` : ''}</div>`;
+}
+function rimpicciolisci(file, max = 200, q = 0.85){
   return new Promise((ok, ko) => {
     const r = new FileReader(); r.onerror = ko;
     r.onload = () => { const img = new Image(); img.onerror = ko; img.onload = () => {
       const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
       c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
       const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
-      ok(c.toDataURL('image/jpeg', 0.85)); }; img.src = r.result; };
+      ok(c.toDataURL('image/jpeg', q)); }; img.src = r.result; };
     r.readAsDataURL(file);
   });
 }
-async function nuovoSponsor(){
-  const nome = $('spNome').value.trim(); if (!nome) return msg('spMsg', 'Scrivi il nome dello sponsor');
-  let link = $('spLink').value.trim(); if (link && !/^https?:\/\//i.test(link)) link = 'https://' + link;
-  let logo = null; const f = $('spLogo').files[0];
-  if (f) { try { logo = await rimpicciolisci(f); } catch(e) { return msg('spMsg', 'Immagine non valida'); } }
-  const { error } = await sb.from('sponsor').insert({ nome, link: link || null, logo, ordine: sponsor.length });
-  if (error) return msg('spMsg', error.message);
-  await caricaSponsor(); renderAdmin(); msg('spMsg', 'Sponsor aggiunto ✅', 'ok');
+const linkOk = l => { l = (l||'').trim(); return l && !/^https?:\/\//i.test(l) ? 'https://' + l : (l || null); };
+async function salvaSponsor(){
+  const nome = $('spNome').value.trim(); if (!nome) return msg('spMsg', 'Scrivi il nome');
+  const row = { nome, tipo: $('spTipo').value, descrizione: $('spDesc').value.trim() || null, whatsapp: $('spWa').value.trim() || null, telefono: $('spTel').value.trim() || null,
+    email: $('spMail').value.trim() || null, indirizzo: $('spInd').value.trim() || null, link: linkOk($('spLink').value) };
+  const f = $('spLogo').files[0];
+  if (f) { try { row.logo = await rimpicciolisci(f, 240); } catch(e) { return msg('spMsg', 'Immagine non valida'); } }
+  const q = editSponsor ? sb.from('sponsor').update(row).eq('id', editSponsor) : sb.from('sponsor').insert({ ...row, ordine: sponsor.length });
+  const { error } = await q; if (error) return msg('spMsg', error.message);
+  editSponsor = null; await caricaSponsor(); renderAdmin(); msg('spMsg', 'Salvato ✅', 'ok');
 }
+async function salvaPuledro(){
+  const nome = $('puNome').value.trim(); if (!nome) return msg('puMsg', 'Scrivi il nome del puledro');
+  const row = { nome, anno: parseInt($('puAnno').value) || null, sesso: $('puSesso').value || null, padre: $('puPadre').value.trim() || null, madre: $('puMadre').value.trim() || null,
+    allevamento_id: +$('puAll').value || null, allevamento_nome: $('puAllNome').value.trim() || null, descrizione: $('puDesc').value.trim() || null, whatsapp: $('puWa').value.trim() || null, telefono: $('puTel').value.trim() || null };
+  const fs = [...$('puFoto').files].slice(0, 3);
+  if (fs.length) { try { row.foto = await Promise.all(fs.map(f => rimpicciolisci(f, 900, 0.78))); } catch(e) { return msg('puMsg', 'Foto non valida'); } }
+  msg('puMsg', 'Salvataggio…', 'ok');
+  const q = editPuledro ? sb.from('puledri').update(row).eq('id', editPuledro) : sb.from('puledri').insert(row);
+  const { error } = await q; if (error) return msg('puMsg', error.message);
+  editPuledro = null; await caricaSponsor(); renderAdmin(); msg('puMsg', 'Annuncio salvato ✅', 'ok');
+}
+async function vendutoPuledro(id, venduto){ await sb.from('puledri').update({ venduto }).eq('id', id); await caricaSponsor(); renderAdmin(); }
+async function eliminaPuledro(id){ if (!confirm('Eliminare questo annuncio?')) return; await sb.from('puledri').delete().eq('id', id); await caricaSponsor(); renderAdmin(); }
 async function toggleSponsor(id, attivo){ await sb.from('sponsor').update({ attivo }).eq('id', id); await caricaSponsor(); renderAdmin(); }
 async function eliminaSponsor(id){ if (!confirm('Eliminare questo sponsor?')) return; await sb.from('sponsor').delete().eq('id', id); await caricaSponsor(); renderAdmin(); }
 caricaSponsor();
@@ -728,6 +857,7 @@ function renderAdmin(){
   $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Pannello commissario</h2>
   ${adminComp()}
   ${adminSponsor()}
+  ${adminPuledri()}
   <div class="card"><h3 style="font-size:22px">1. Nuova giornata</h3>
     <label>Nome</label><input id="gNome" placeholder="es. Giornata 1 - Domenica di trotto">
     <label>Data</label><input type="date" id="gData">
