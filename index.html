@@ -13,7 +13,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Inter,system-ui,sans-serif;background:var(--crema);color:var(--testo);min-height:100vh;padding-bottom:80px}
 header .area-sw{max-width:720px;margin:10px auto 0;display:flex;background:rgba(0,0,0,.25);border-radius:12px;padding:4px;gap:4px}
-header .area-sw button{flex:1;background:transparent;color:rgba(255,255,255,.75);padding:9px 6px;font-size:13px;letter-spacing:.5px;border-radius:9px}
+header .area-sw button{flex:1;background:transparent;color:rgba(255,255,255,.75);padding:10px 4px;font-size:12px;letter-spacing:.3px;border-radius:9px;white-space:nowrap}
 header .area-sw button.on{background:var(--oro);color:#111;box-shadow:0 2px 6px rgba(0,0,0,.3)}
 body.area-mercato header{background:linear-gradient(135deg,#2b1a0b,#4a2f14)}
 body.area-mercato{--verde:#5a3a17}
@@ -32,8 +32,20 @@ body.area-mercato{--verde:#5a3a17}
 .pul .bd{padding:14px}.pul h3{font-size:26px;color:var(--verde)}.pul .prz{font-family:'Bebas Neue';font-size:26px;color:#8a6200}
 .chips{display:flex;gap:6px;overflow:auto;margin-bottom:10px}.chips button{background:#fff;border:1px solid #d1d5db;color:var(--testo);padding:8px 12px;white-space:nowrap}.chips button.on{background:var(--verde);color:#fff;border-color:var(--verde)}
 .allev{display:flex;gap:10px;overflow:auto;padding-bottom:4px}.allev div{flex:0 0 92px;text-align:center;cursor:pointer}.allev img,.allev .ini{width:72px;height:72px;border-radius:50%;object-fit:contain;background:#fff;border:3px solid var(--oro);margin:0 auto 4px;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue';font-size:28px;color:var(--oro);background:#111}.allev img{background:#fff}.allev span{font-size:12px;font-weight:700}
-body.has-sponsor{padding-bottom:172px}
-#sponsorBar{position:fixed;left:0;right:0;z-index:7;bottom:calc(58px + env(safe-area-inset-bottom));height:88px;overflow:hidden;
+body.has-sponsor{padding-bottom:110px}
+body.is-admin #sponsorBar{left:60px}
+#adminBtn{position:fixed;left:0;bottom:0;z-index:8;width:60px;height:calc(88px + env(safe-area-inset-bottom));padding:0 0 env(safe-area-inset-bottom);border-radius:0;background:#111;color:#e9c463;font-size:26px;border-top:3px solid #111;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+#adminBtn small{font-size:9px;letter-spacing:1px;color:#e9c463}
+#menuTendina{max-width:720px;margin:6px auto 0;background:#fff;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.35);overflow:hidden}
+#menuTendina button{display:flex;align-items:center;gap:12px;width:100%;background:#fff;color:var(--testo);border-radius:0;border-bottom:1px solid #eee;padding:14px 16px;font-size:16px;text-align:left}
+#menuTendina button:last-child{border-bottom:0}#menuTendina button.on{background:#fff8e6;color:#8a6200}
+#menuTendina .i{font-size:22px;width:28px;text-align:center}
+.porta{display:block;border-radius:18px;padding:20px;margin-bottom:14px;color:#fff;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.porta.g{background:linear-gradient(135deg,#0f3d2e,#1d6a4f)}.porta.m{background:linear-gradient(135deg,#2b1a0b,#6b4520)}
+.porta h2{font-size:34px;color:#f5d77e;line-height:1}.porta p{opacity:.9;margin-top:6px;font-size:14px}.porta .ico{position:absolute;right:14px;top:10px;font-size:64px;opacity:.25}
+.porta .go{display:inline-block;margin-top:12px;background:#e9c463;color:#111;font-weight:800;padding:9px 16px;border-radius:10px}
+.porta .st{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}.porta .st span{background:rgba(255,255,255,.12);padding:5px 10px;border-radius:8px;font-size:13px}
+#sponsorBar{position:fixed;left:0;right:0;z-index:7;bottom:0;padding-bottom:env(safe-area-inset-bottom);height:calc(88px + env(safe-area-inset-bottom));overflow:hidden;
   background:linear-gradient(90deg,#8a5f12,#e9c463 25%,#fff0b8 50%,#e9c463 75%,#8a5f12);border-top:3px solid #111;border-bottom:1px solid #111;box-shadow:0 -6px 18px rgba(0,0,0,.35)}
 #sponsorBar.su-auth{bottom:0;height:calc(88px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom)}
 #sponsorBar::after{content:"";position:absolute;top:0;bottom:0;left:-40%;width:30%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.75),transparent);animation:sp-shine 4s ease-in-out infinite;pointer-events:none}
@@ -72,7 +84,7 @@ header h1{font-size:30px}
 .online-list{background:#fff;color:var(--testo);border-radius:12px;padding:10px 14px;box-shadow:0 4px 14px rgba(0,0,0,.2)}.online-list div{padding:6px 0;border-bottom:1px solid #eee;font-size:14px}.online-list div:last-child{border:0}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#22c55e;margin-right:8px}header h1 span{color:var(--oro)}
 .user-chip{font-size:13px;background:rgba(255,255,255,.12);padding:6px 10px;border-radius:20px}
 /* NAV */
-nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;display:flex;justify-content:space-around;padding:6px 0 calc(6px + env(safe-area-inset-bottom));z-index:6}
+nav{display:none!important;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;display:flex;justify-content:space-around;padding:6px 0 calc(6px + env(safe-area-inset-bottom));z-index:6}
 nav button{background:none;color:var(--grigio);display:flex;flex-direction:column;align-items:center;font-size:10px;padding:6px 4px}
 .match{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid #eee}.match:last-child{border-bottom:0}.match .u{font-weight:600}.match .u.r{text-align:right}.match .sc{font-family:'Bebas Neue';font-size:24px;color:var(--verde);text-align:center;min-width:64px}.match .win{color:#8a6200}.match .lose{color:var(--grigio);text-decoration:line-through}
 nav button .i{font-size:22px}nav button.on{color:var(--verde)}
@@ -129,10 +141,12 @@ td.n{text-align:right;font-weight:700}tr.me{background:#fff8e6}
 
 <!-- ================= APP ================= -->
 <section id="app" class="hidden">
-  <header><div class="in"><div class="brand"><img src="" class="logoIcona" alt="FantaTrotto"><h1>FANTA<span>TROTTO</span></h1></div><div style="display:flex;gap:6px;align-items:center"><button class="user-chip" id="onlineBtn" onclick="toggleOnline()" style="border:0;color:#fff;cursor:pointer">🟢 …</button><span class="user-chip" id="chip"></span></div></div>
-  <div class="area-sw" id="areaSw"><button data-a="gioco" onclick="setArea('gioco')">🏆 FANTA GIOCO</button><button data-a="mercato" onclick="setArea('mercato')">🐴 MERCATO CAVALLI</button></div>
+  <header><div class="in"><div class="brand" onclick="chiudiTendina();go('portale')" style="cursor:pointer"><img src="" class="logoIcona" alt="FantaTrotto"><h1>FANTA<span>TROTTO</span></h1></div><div style="display:flex;gap:6px;align-items:center"><button class="user-chip" id="onlineBtn" onclick="toggleOnline()" style="border:0;color:#fff;cursor:pointer">🟢 …</button><span class="user-chip" id="chip"></span></div></div>
+  <div class="area-sw" id="areaSw"><button data-a="gioco" onclick="apriTendina('gioco')">🏆 FANTA GIOCO ▾</button><button data-a="mercato" onclick="apriTendina('mercato')">🐴 MERCATO CAVALLI ▾</button></div>
+  <div id="menuTendina" class="hidden"></div>
   <div id="onlinePanel" class="hidden" style="max-width:720px;margin:8px auto 0"></div></header>
   <main class="wrap">
+    <div id="pg-portale" class="hidden"></div>
     <div id="compBar" style="margin-bottom:12px"></div>
     <div id="pg-home"></div>
     <div id="pg-corse" class="hidden"></div>
@@ -156,6 +170,7 @@ td.n{text-align:right;font-weight:700}tr.me{background:#fff8e6}
 </section>
 
 <div id="sponsorBar" class="hidden"></div>
+<button id="adminBtn" class="hidden" onclick="chiudiTendina();go('admin')">⚙️<small>ADMIN</small></button>
 <div id="modal" class="hidden" onclick="if(event.target===this)chiudiModal()"><div class="modal-box" id="modalBox"></div></div>
 
 <script>
@@ -255,7 +270,7 @@ sb.auth.onAuthStateChange(async (ev, session) => {
     if (np) { const { error } = await sb.auth.updateUser({ password: np }); alert(error ? error.message : 'Password aggiornata!'); }
   }
   if (session?.user) { if (me?.id !== session.user.id) { me = session.user; await avvia(); } }
-  else { me = null; $('app').classList.add('hidden'); $('auth').classList.remove('hidden'); mostraIscrizioni(); mostraSponsor(); }
+  else { me = null; $('adminBtn').classList.add('hidden'); document.body.classList.remove('is-admin'); $('app').classList.add('hidden'); $('auth').classList.remove('hidden'); mostraIscrizioni(); mostraSponsor(); }
 });
 
 // ---------- COMPETIZIONI ----------
@@ -349,9 +364,9 @@ async function avvia(){
   let { data: p } = await sb.from('profiles').select('*').eq('id', me.id).single();
   profilo = p || { username: me.email, is_admin: false };
   $('chip').innerHTML = `👤 ${esc(profilo.username)} · <a href="#" onclick="logout()" style="color:var(--oro)">esci</a>`;
-  $('navAdmin').classList.toggle('hidden', !profilo.is_admin);
+  $('adminBtn').classList.toggle('hidden', !profilo.is_admin); document.body.classList.toggle('is-admin', !!profilo.is_admin);
   avviaPresenza(); mostraSponsor();
-  await carica(); setArea(area);
+  await carica(); go('portale');
 }
 async function carica(){
   const [g, c, pr] = await Promise.all([
@@ -375,22 +390,46 @@ async function carica(){
 
 function go(p){
   paginaAttuale = p;
-  if (p !== 'admin') { const a = PAGINE_MERCATO.includes(p) ? 'mercato' : 'gioco'; if (a !== area) { area = a; aggiornaArea(); } }
-  ['home','corse','classifica','scontri','mercato','allevamenti','regole','admin'].forEach(x => $('pg-'+x).classList.toggle('hidden', x!==p));
-  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.p===p));
-  ({home:renderHome, corse:renderCorse, classifica:renderClassifica, scontri:renderScontri, mercato:renderMercato, allevamenti:renderAllevamenti, regole:renderRegole, admin:renderAdmin})[p]();
+  if (p !== 'admin') { const a = p === 'portale' ? 'portale' : PAGINE_MERCATO.includes(p) ? 'mercato' : 'gioco'; if (a !== area) { area = a; aggiornaArea(); } }
+  else if (area === 'portale') { area = 'gioco'; aggiornaArea(); }
+  ['portale','home','corse','classifica','scontri','mercato','allevamenti','regole','admin'].forEach(x => $('pg-'+x).classList.toggle('hidden', x!==p));
+  ({portale:renderPortale, home:renderHome, corse:renderCorse, classifica:renderClassifica, scontri:renderScontri, mercato:renderMercato, allevamenti:renderAllevamenti, regole:renderRegole, admin:renderAdmin})[p]();
   scrollTo(0,0);
 }
 function aggiornaArea(){
-  try { localStorage.setItem('ft_area', area); } catch(e){}
+  try { if (area !== 'portale') localStorage.setItem('ft_area', area); } catch(e){}
   document.body.classList.toggle('area-mercato', area === 'mercato');
   document.querySelectorAll('#areaSw button').forEach(b => b.classList.toggle('on', b.dataset.a === area));
-  document.querySelectorAll('nav button[data-area]').forEach(b => b.classList.toggle('hidden', b.dataset.area !== area));
   $('compBar').classList.toggle('hidden', area !== 'gioco');
 }
+const MENU = {
+  gioco: [['home','🏠','Home gioco'],['corse','🏇','Corse'],['classifica','🏆','Classifica'],['scontri','⚔️','Scontri diretti'],['regole','📜','Regolamento']],
+  mercato: [['mercato','🐴','Cavalli in vendita'],['allevamenti','🏡','Allevamenti']]
+};
+let tendinaAperta = null;
+function apriTendina(a){
+  if (tendinaAperta === a) return chiudiTendina();
+  tendinaAperta = a;
+  $('menuTendina').innerHTML = MENU[a].map(([p,i,t]) => `<button class="${paginaAttuale===p?'on':''}" onclick="chiudiTendina();go('${p}')"><span class="i">${i}</span>${t}</button>`).join('');
+  $('menuTendina').classList.remove('hidden');
+  document.querySelectorAll('#areaSw button').forEach(b => b.classList.toggle('on', b.dataset.a === a));
+}
+function chiudiTendina(){ tendinaAperta = null; $('menuTendina').classList.add('hidden'); aggiornaArea(); }
+document.addEventListener('click', e => { if (tendinaAperta && !e.target.closest('#menuTendina') && !e.target.closest('#areaSw')) chiudiTendina(); });
 function setArea(a){ area = a; aggiornaArea(); go(a === 'mercato' ? 'mercato' : 'home'); }
-
-// ---------- HOME ----------
+function renderPortale(){
+  const c = compCorrente(), aperte = corse.filter(x => stato(x) === 'aperta'), daFare = iscritti.has(me.id) ? aperte.filter(x => !miei[x.id]).length : 0;
+  const inVendita = puledri.filter(x => !x.venduto).length, nAll = sponsor.filter(x => x.attivo && x.tipo === 'allevamento').length;
+  $('pg-portale').innerHTML = `<div style="text-align:center;margin:4px 0 14px"><img src="${LOGO}" style="width:170px;max-width:55%"><p style="margin-top:6px">Ciao <b>${esc(profilo.username)}</b>, dove vuoi andare?</p></div>
+    <div class="porta g" onclick="setArea('gioco')"><span class="ico">🏆</span><h2>FANTA GIOCO</h2>
+      <p>Pronostica le corse reali di trotto, scala la classifica e sfida gli altri negli scontri diretti.</p>
+      <div class="st">${c ? `<span>🏆 ${esc(c.nome)}</span>` : ''}${iscritti.has(me.id) ? '<span>✅ Iscritto</span>' : (statoComp(c)==='aperte' ? '<span>📝 Iscrizioni aperte!</span>' : '')}<span>🏇 ${aperte.length} corse aperte</span>${daFare ? `<span>⏰ ${daFare} da pronosticare</span>` : ''}</div>
+      <span class="go">Entra nel gioco →</span></div>
+    <div class="porta m" onclick="setArea('mercato')"><span class="ico">🐴</span><h2>MERCATO CAVALLI</h2>
+      <p>Cavalli in vendita da allevamenti e proprietà: guarda foto e video e contatta direttamente la proprietà.</p>
+      <div class="st"><span>🐴 ${inVendita} cavalli in vendita</span><span>🏡 ${nAll} allevamenti</span></div>
+      <span class="go">Vai al mercato →</span></div>`;
+}
 async function renderHome(){
   const lista = await classificaCalcolata(); const i = lista.findIndex(r => r.user_id === me.id); const mio = lista[i] || { punti:0, corse_giocate:0, vincenti:0 };
   const prossime = corse.filter(c => stato(c)==='aperta').slice(0,3);
@@ -401,9 +440,7 @@ async function renderHome(){
       <div class="stats"><div><b>${mio.corse_giocate}</b>corse</div><div><b>${mio.vincenti}</b>vincenti</div><div><b>${i>=0?i+1:'-'}°</b>posizione</div></div></div>`}
     <h2 style="color:var(--verde);font-size:24px;margin:6px 0">Prossime corse ${daFare?`<span class="badge b-chiusa">${daFare} da pronosticare</span>`:''}</h2>
     ${prossime.length ? prossime.map(cardCorsa).join('') : '<div class="card muted">Nessuna corsa aperta al momento. Torna più tardi!</div>'}
-    <button class="btn full" onclick="go('corse')">Tutte le corse</button>
-    <h2 style="color:var(--verde);font-size:24px;margin:18px 0 6px">📰 Giornale del trotto</h2><div id="giornale" class="card"><p class="muted">Caricamento notizie…</p></div>`;
-  caricaGiornale();
+    <button class="btn full" onclick="go('corse')">Tutte le corse</button>`;
 }
 
 // ---------- CORSE ----------
@@ -937,8 +974,9 @@ function renderAdmin(){
   if (!profilo.is_admin) return;
   const optG = giornate.map(g => `<option value="${g.id}">${esc(g.nome)} (${fmtData(g.data)})</option>`).join('');
   const daChiudere = corse.filter(c => !c.arrivo?.length && new Date(c.orario) <= new Date());
-  if (area === 'mercato') { $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Gestione Mercato cavalli</h2>${adminPuledri()}${adminSponsor()}`; return; }
-  $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Pannello Fanta gioco</h2>
+  const tabs = `<div class="row" style="margin-bottom:12px"><button class="${area!=='mercato'?'btn':'btn-ghost'}" onclick="area='gioco';aggiornaArea();renderAdmin()">🏆 Gestione gioco</button><button class="${area==='mercato'?'btn':'btn-ghost'}" onclick="area='mercato';aggiornaArea();renderAdmin()">🐴 Gestione mercato</button></div>`;
+  if (area === 'mercato') { $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Admin</h2>${tabs}${adminPuledri()}${adminSponsor()}`; return; }
+  $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Admin</h2>${tabs}
   ${adminComp()}
   ${adminSponsor()}
   <div class="card"><h3 style="font-size:22px">1. Nuova giornata</h3>
