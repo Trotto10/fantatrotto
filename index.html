@@ -1118,6 +1118,14 @@ async function impostaSocio(attiva){
   const { error } = await sb.from('profiles').update({ socio_fino: attiva ? $('sFino').value : null }).eq('id', uid);
   if (error) return msg('sMsg', error.message); await carica(); renderAdmin(); msg('sMsg', attiva ? 'Socio attivato ✅' : 'Socio tolto', 'ok');
 }
+async function aggiungiMontepremi(){
+  const c = compCorrente(); if (!c) return;
+  const q = parseInt(prompt(`Quanti Ferri d'Oro vuoi aggiungere al montepremi di "${c.nome}"?\n(Ora il montepremi è ${(c.costo_ferri||0)*iscritti.size + (c.montepremi_extra||0)} Ferri)`), 10);
+  if (!(q > 0)) return;
+  const { error } = await sb.from('competizioni').update({ montepremi_extra: (c.montepremi_extra || 0) + q }).eq('id', c.id);
+  if (error) return alert(error.message);
+  await carica(); renderAdmin(); alert(`✅ Aggiunti ${q} Ferri al montepremi. Gli utenti lo vedono subito sulla scheda del torneo.`);
+}
 async function assegnaMontepremi(){
   const c = compCorrente(); if (!c) return;
   let ordine = (await classificaCalcolata()).map(r => r.user_id);
@@ -1189,6 +1197,7 @@ function adminComp(){
     <label>Chiusura iscrizioni</label><input type="datetime-local" id="iC" value="${toLocalInput(c.iscrizioni_chiusura)}">
     <p class="muted">${testoStato(c)}</p>
     <div id="iMsg"></div><button class="btn full" onclick="salvaComp()">Salva competizione</button>
+    ${!c.solo_soci && !c.montepremi_assegnato ? `<button class="btn-ghost full" style="margin-top:8px" onclick="aggiungiMontepremi()">➕ ${ferro(16)} Aggiungi Ferri al montepremi (anche a torneo in corso)</button>` : ''}
     ${!c.solo_soci ? (c.montepremi_assegnato ? `<p class="muted" style="margin-top:8px">✅ Montepremi già assegnato</p>` : `<button class="btn-oro full" style="margin-top:8px" onclick="assegnaMontepremi()">${ferro(18)} Assegna montepremi (${(c.costo_ferri||0)*iscritti.size + (c.montepremi_extra||0)} Ferri)</button>`) : ''}
     <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">👥 Iscritti (${lista.length})</summary>
       ${lista.map(u => `<div class="row" style="border-bottom:1px solid #eee;padding:6px 0"><div style="flex:3">${esc(u.n)}</div><button class="btn-ghost" style="flex:0;padding:4px 10px" onclick="togliPartecipante('${u.id}')">✖</button></div>`).join('') || '<p class="muted">Nessun iscritto.</p>'}
