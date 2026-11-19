@@ -1558,19 +1558,14 @@ function renderAdmin(){
   ${adminComp()}
   ${adminFerri()}
   ${adminSponsor()}
-  <div class="card"><h3 style="font-size:22px">1. Nuova giornata</h3>
-    <label>Nome</label><input id="gNome" placeholder="es. Giornata 1 - Domenica di trotto">
-    <label>Data</label><input type="date" id="gData">
-    <div id="gMsg"></div><button class="btn full" onclick="nuovaGiornata()">Crea giornata</button></div>
-  <div class="card"><h3 style="font-size:22px">2. Aggiungi corsa reale</h3>
-    <label>Giornata</label><select id="cG">${optG || '<option value="">Crea prima una giornata</option>'}</select>
+  <div class="card"><h3 style="font-size:22px">1. Aggiungi corsa reale</h3>
     <div class="row"><div><label>Ippodromo</label><input id="cIpp" placeholder="es. San Siro"></div><div style="flex:0 0 90px"><label>N° corsa</label><input type="number" id="cNum" value="1" min="1"></div></div>
     <label>Fase</label><select id="cFase"><option value="classifica">🏆 Classifica (prime ${CORSE_CLASSIFICA} corse)</option><option value="scontri">⚔️ Scontri diretti</option></select>
     <label>Nome premio</label><input id="cNome" placeholder="es. Premio Gaida - Corsa Tris">
     <label>Data e ora di partenza ufficiale (i pronostici chiudono 1 ora prima)</label><input type="datetime-local" id="cOra">
     <label>🔗 Link alla pagina dei partenti (facoltativo)</label><input id="cLink" type="url" inputmode="url" placeholder="incolla qui il link della corsa con i cavalli">
     <div id="cMsg"></div><button class="btn full" onclick="nuovaCorsa()">Aggiungi corsa</button></div>
-  <div class="card"><h3 style="font-size:22px">3. Inserisci arrivo ufficiale</h3>
+  <div class="card"><h3 style="font-size:22px">2. Inserisci arrivo ufficiale</h3>
     ${daChiudere.length ? daChiudere.map(c => `<div style="border-top:1px solid #eee;padding-top:10px;margin-top:10px"><b>${c.numero}ª ${esc(c.ippodromo)}</b> <span class="muted">${esc(c.nome)}</span>
       <div class="picks" style="margin-top:6px">${[1,2,3].map(k=>`<div><label>${k}° arrivato</label><input type="number" inputmode="numeric" min="1" max="30" id="a${k}-${c.id}" placeholder="n°"></div>`).join('')}</div>
       <label>⏱ Tempo al km ufficiale del vincitore</label><input id="at-${c.id}" placeholder="1'12&quot;1">
@@ -1578,7 +1573,7 @@ function renderAdmin(){
       <label>Squalificati per rottura (numeri separati da virgola)</label><input id="ao-${c.id}" inputmode="numeric" placeholder="es. 7" value="${(c.rotture||[]).join(', ')}">
       <button class="btn-oro full" onclick="salvaArrivo(${c.id})">Conferma arrivo</button>${btnRisultati(c)}</div>`).join('') : '<p class="muted">Nessuna corsa in attesa di arrivo.</p>'}</div>
   ${adminScontri()}
-  <div class="card"><h3 style="font-size:22px">Gestisci giornate</h3>
+  <div class="card"><h3 style="font-size:22px">Giornate <span class="muted" style="font-size:13px;font-family:Inter">(create in automatico dalle corse)</span></h3>
     ${giornate.length ? giornate.map(g => { const n = corse.filter(c => c.giornata_id === g.id).length; return `<div class="row" style="border-bottom:1px solid #eee;padding:8px 0"><div style="flex:3"><b>${esc(g.nome)}</b><div class="muted">${fmtData(g.data)} · ${n} ${n===1?'corsa':'corse'}</div></div><button class="btn-rosso" style="flex:0" onclick="eliminaGiornata(${g.id})">🗑</button></div>`; }).join('') : '<p class="muted">Nessuna giornata.</p>'}</div>
   <div class="card"><h3 style="font-size:22px">Gestisci corse</h3>
     ${corse.length ? corse.slice().reverse().map(c => `<div class="row" style="border-bottom:1px solid #eee;padding:8px 0"><div style="flex:3"><b>${c.numero}ª ${esc(c.ippodromo)}</b><div class="muted">${c.fase==='scontri'?'⚔️':'🏆'} ${fmtData(c.orario)} ${fmtOra(c.orario)} · ${c.arrivo?.length?'arrivo: '+c.arrivo.join('-'):'senza arrivo'}</div></div>
@@ -1600,8 +1595,16 @@ function leggiPartenti(txt){
   }).filter(Boolean);
 }
 async function nuovaCorsa(){
-  const g = $('cG').value, ora = $('cOra').value, ipp = $('cIpp').value.trim();
-  if (!g || !ora || !ipp) return msg('cMsg','Compila giornata, ippodromo e orario');
+  const ora = $('cOra').value, ipp = $('cIpp').value.trim();
+  if (!ora || !ipp) return msg('cMsg','Compila ippodromo e orario di partenza');
+  if (!compSel) return msg('cMsg','Crea prima una competizione');
+  const giorno = ora.slice(0, 10);
+  let g = giornateAll.find(x => x.competizione_id === compSel && x.data === giorno)?.id;
+  if (!g) {
+    const { data: ng, error: eg } = await sb.from('giornate').insert({ nome: 'Corse di ' + fmtData(giorno + 'T12:00'), data: giorno, competizione_id: compSel }).select().single();
+    if (eg) return msg('cMsg', eg.message);
+    g = ng.id;
+  }
   const { error } = await sb.from('corse').insert({ giornata_id: +g, ippodromo: ipp, numero: +$('cNum').value || 1, nome: $('cNome').value.trim(), orario: new Date(ora).toISOString(), partenti: [], fase: $('cFase').value, link_partenti: linkOk($('cLink').value) });
   if (error) return msg('cMsg', error.message);
   await carica(); renderAdmin(); msg('cMsg', 'Corsa aggiunta ✅', 'ok');
