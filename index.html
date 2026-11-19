@@ -1339,6 +1339,8 @@ const chiusuraSfida = s => { const c = corseSfida(s)[0]; return c ? chiusura(c) 
 const sfidaFinita = s => { const cs = corseSfida(s); return cs.length > 0 && cs.every(c => c.arrivo?.length); };
 const nomeG = s => { const c = corseSfida(s)[0]; return c ? `${c.numero}ª corsa ${c.ippodromo}${c.nome ? ' · ' + c.nome : ''} · ${fmtData(c.orario)} ore ${fmtOra(c.orario)}` : 'Corsa'; };
 const giocSfida = s => sfideGioc.filter(x => x.sfida_id === s.id).map(x => x.user_id);
+const montSfida = (s, n) => Math.floor((s.costo_ferri || 0) * n * (100 - (s.trattenuta || 0)) / 100);
+const premiSfida = (s, n) => { const tot = montSfida(s, n), r = ripSfida(s); const q = r.map(x => Math.round(tot * x / 100)); const somma = r.reduce((a,b) => a + b, 0); if (somma >= 99 && q.length) q[0] += tot - q.reduce((a,b) => a + b, 0); return q; };
 const ripSfida = s => (s.ripartizione || '100').split(',').map(Number).filter(x => x > 0);
 const statoSfida = s => s.stato !== 'aperta' ? s.stato : (chiusuraSfida(s) > new Date() ? 'registrazione' : giocSfida(s).length < s.posti ? 'annullata' : 'corso');
 async function puntiSfide(lista){
@@ -1389,7 +1391,7 @@ async function renderSfide(){
 }
 function cardSfida(s, p){
   const g = giocSfida(s), st = statoSfida(s), dentro = g.includes(me.id), ch = chiusuraSfida(s);
-  const mont = (s.costo_ferri || 0) * (st === 'annullata' ? g.length : s.posti);
+  const mont = st === 'annullata' ? (s.costo_ferri || 0) * g.length : montSfida(s, s.posti);
   const ban = { registrazione:['IN REGISTRAZIONE','#7fe0c9','#0b3d2e'], corso:['IN CORSO','#f5d77e','#3a2a00'], pagata:['CONCLUSO','#d9d9d9','#333'], annullata:['ANNULLATO','#f3b0a8','#5a1a12'] }[st];
   const tag = t => `<span style="display:inline-block;background:#fff;color:#111;font-size:11px;font-weight:800;padding:1px 5px;border-radius:3px;margin-left:3px">${t}</span>`;
   const head = `<div onclick="sfidaAperta = sfidaAperta === ${s.id} ? null : ${s.id}; renderSfide()" style="cursor:pointer;display:flex;border-radius:16px;overflow:hidden;border:2px solid ${dentro ? 'var(--oro)' : '#2c5d94'};background:linear-gradient(135deg,#0b2545,#1d4e89);color:#fff;margin-bottom:${sfidaAperta === s.id ? 0 : 12}px;box-shadow:0 4px 12px rgba(0,0,0,.18)">
@@ -1405,8 +1407,8 @@ function cardSfida(s, p){
         <div style="font-family:'Bebas Neue';font-size:34px;line-height:1;color:#f5d77e;display:flex;align-items:center;gap:4px">${ferro(22)}${mont}</div>
         <div style="font-size:11px;font-weight:700;opacity:.9">MONTEPREMI</div></div></div>`;
   if (sfidaAperta !== s.id) return head;
-  const rip = ripSfida(s), totMax = (s.costo_ferri || 0) * s.posti;
-  const premi = rip.map((x,i) => `<span style="display:inline-block;margin:2px 8px 2px 0">${i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'°'} <b>${Math.floor(totMax * x / 100)}</b></span>`).join('');
+  const rip = ripSfida(s), qPremi = premiSfida(s, s.posti);
+  const premi = rip.map((x,i) => `<span style="display:inline-block;margin:2px 8px 2px 0">${i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'°'} <b>${qPremi[i]}</b></span>`).join('') + (s.trattenuta ? `<span class="muted" style="font-size:12px"> · trattenuta banco ${s.trattenuta}%</span>` : '');
   const ord = p?.ord || g.map(id => ({ user_id:id }));
   const posFin = id => sfideGioc.find(x => x.sfida_id === s.id && x.user_id === id);
   const elenco = (s.stato === 'pagata' ? [...g].sort((a,b) => (posFin(a)?.posizione ?? 99) - (posFin(b)?.posizione ?? 99)).map(id => ({ user_id:id, punti:p?.by?.[id]?.punti })) : ord)
@@ -1472,15 +1474,16 @@ function adminSfide(){
     <label>Corsa</label><select id="sfCorsa" onchange="$('sfNuova').style.display = this.value ? 'none' : 'block'"><option value="">➕ Nuova corsa</option>${future.map(c => `<option value="${c.id}">${c.numero}ª ${esc(c.ippodromo)} · ${esc(c.nome)} · ${fmtData(c.orario)} ${fmtOra(c.orario)}</option>`).join('')}</select>
     <div id="sfNuova">
       <div class="row"><div><label>Ippodromo</label><input id="sfIpp" placeholder="es. Napoli Agnano"></div><div style="flex:0 0 90px"><label>N° corsa</label><input type="number" id="sfNum" value="1" min="1"></div></div>
-      <label>Nome della gara / premio</label><input id="sfNomeC" placeholder="es. Premio Partenope – Gran Premio">
+      <label>Nome della gara / premio <span class="muted">(facoltativo)</span></label><input id="sfNomeC" placeholder="se lo lasci vuoto: «N° corsa + ippodromo»">
       <label>Partenza ufficiale</label><input type="datetime-local" id="sfOra" value="${dl}">
       <label>Chiusura iscrizioni e pronostici: quanti minuti prima della partenza</label><input type="number" id="sfMin" min="0" max="180" value="10">
       <label>🔗 Link alla pagina dei partenti (facoltativo)</label><input id="sfLink" type="url" inputmode="url" placeholder="incolla qui il link della corsa con i cavalli">
     </div>
     <h3 style="font-size:18px;margin-top:12px">2️⃣ Il tavolo</h3>
     <label>Nome del tavolo</label><input id="sfNome" placeholder="es. Testa a testa">
-    <div class="row"><div><label>Ingresso in Ferri</label><input type="number" id="sfCosto" min="0" value="10"></div><div><label>Posti</label><input type="number" id="sfPosti" min="2" max="50" value="2" oninput="$('sfRip').value = +this.value <= 3 ? '100' : +this.value <= 6 ? '65,35' : '50,30,20'"></div></div>
-    <label>Premi in % (1°,2°,3°…)</label><input id="sfRip" value="100" placeholder="100 = vince tutto · 50,30,20 = primi tre">
+    <div class="row"><div><label>Ingresso in Ferri</label><input type="number" id="sfCosto" min="0" value="10"></div><div><label>Posti</label><input type="number" id="sfPosti" min="2" max="50" value="2" oninput="presetSitGo(+this.value)"></div></div>
+    <div class="row"><div style="flex:2"><label>Premi in % (1°,2°,3°…)</label><input id="sfRip" value="100" placeholder="100 = vince tutto · 50,30,20 = primi tre"></div><div><label>Trattenuta banco %</label><input type="number" id="sfTratt" min="0" max="50" value="16"></div></div>
+    <p class="muted" style="font-size:12px;margin-top:-4px">Come nel poker: il montepremi è la somma degli ingressi meno la trattenuta. Es. 2 × 10 Ferri con il 16% → in palio 16. Per un <b>Double Up</b> a 6 posti metti premi 34,33,33.</p>
     <div class="row"><div><label>Quanti tavoli uguali</label><input type="number" id="sfQta" min="1" max="20" value="1"></div><div style="display:flex;align-items:flex-end"><label style="font-size:13px"><input type="checkbox" id="sfRicrea" checked style="width:auto"> Riapri un tavolo uguale quando si riempie</label></div></div>
     <div id="sfMsg"></div><button class="btn-oro full" onclick="creaSfide()">➕ Crea torneo</button>
     <h3 style="font-size:18px;margin-top:14px">🏇 Corse dei tornei in programma</h3>
@@ -1506,6 +1509,10 @@ async function caricaAdminSfide(){
       <div style="font-size:14px">${p.ord.map((r,i) => `${i+1}. ${esc(utenti[r.user_id] || '?')} (${r.punti} pt)`).join(' · ') || '<span class="muted">nessun iscritto</span>'}</div><div style="margin-top:4px">${bott || `<span class="muted">${st === 'registrazione' ? 'In registrazione…' : 'In corso…'}</span>`}</div></div>`;
   }).join('');
 }
+function presetSitGo(n){
+  const p = n <= 3 ? ['100', 16, n === 2 ? 'Testa a testa' : ''] : n <= 6 ? ['34,33,33', 20, `Double Up ${n} giocatori`] : ['50,30,20', 20, `Torneo ${n} giocatori`];
+  $('sfRip').value = p[0]; $('sfTratt').value = p[1]; if (p[2] && !$('sfNome').value.trim()) $('sfNome').placeholder = 'es. ' + p[2];
+}
 async function creaSfide(){
   const posti = Math.min(50, Math.max(2, parseInt($('sfPosti').value, 10) || 2));
   const rip = $('sfRip').value.replace(/\s/g,'');
@@ -1516,13 +1523,13 @@ async function creaSfide(){
     const ipp = $('sfIpp').value.trim(), ora = $('sfOra').value, min = Math.max(0, parseInt($('sfMin').value, 10) || 0);
     if (!ipp || !ora) return msg('sfMsg', 'Scrivi ippodromo e orario di partenza della corsa');
     if (new Date(ora).getTime() - min * 60000 <= Date.now()) return msg('sfMsg', 'La chiusura dei pronostici è già passata: controlla data e ora');
-    const { data, error } = await sb.from('corse').insert({ giornata_id: null, ippodromo: ipp, numero: +$('sfNum').value || 1, nome: $('sfNomeC').value.trim(), orario: new Date(ora).toISOString(), partenti: [], fase: 'torneo', chiusura_min: min, link_partenti: linkOk($('sfLink').value) }).select().single();
+    const { data, error } = await sb.from('corse').insert({ giornata_id: null, ippodromo: ipp, numero: +$('sfNum').value || 1, nome: $('sfNomeC').value.trim() || `${+$('sfNum').value || 1}ª corsa ${ipp}`, orario: new Date(ora).toISOString(), partenti: [], fase: 'torneo', chiusura_min: min, link_partenti: linkOk($('sfLink').value) }).select().single();
     if (error) return msg('sfMsg', error.message);
     corsa = data.id;
   }
-  const nome = $('sfNome').value.trim() || (posti === 2 ? 'Testa a testa' : `Torneo ${posti} giocatori`);
+  const nome = $('sfNome').value.trim() || (posti === 2 ? 'Testa a testa' : rip === '34,33,33' ? `Double Up ${posti} giocatori` : `Torneo ${posti} giocatori`);
   const costo = Math.max(0, parseInt($('sfCosto').value, 10) || 0), n = Math.min(20, Math.max(1, parseInt($('sfQta').value, 10) || 1));
-  const { error } = await sb.from('sfide').insert(Array.from({ length: n }, () => ({ nome, corsa_id: corsa, costo_ferri: costo, posti, ripartizione: rip, ricrea: $('sfRicrea').checked })));
+  const { error } = await sb.from('sfide').insert(Array.from({ length: n }, () => ({ nome, corsa_id: corsa, costo_ferri: costo, posti, ripartizione: rip, trattenuta: Math.min(50, Math.max(0, parseInt($('sfTratt').value, 10) || 0)), ricrea: $('sfRicrea').checked })));
   if (error) return msg('sfMsg', error.message);
   await carica(); renderAdmin(); setTimeout(() => msg('sfMsg', `✅ Torneo creato (${n} tavol${n>1?'i':'o'})`, 'ok'), 50);
 }
@@ -1559,10 +1566,10 @@ function renderAdmin(){
   ${adminFerri()}
   ${adminSponsor()}
   <div class="card"><h3 style="font-size:22px">1. Aggiungi corsa reale</h3>
-    <div class="row"><div><label>Ippodromo</label><input id="cIpp" placeholder="es. San Siro"></div><div style="flex:0 0 90px"><label>N° corsa</label><input type="number" id="cNum" value="1" min="1"></div></div>
+    <div class="row"><div><label>Ippodromo</label><input id="cIpp" placeholder="es. San Siro" value="${esc(ultCorsa.ipp)}"></div><div style="flex:0 0 90px"><label>N° corsa</label><input type="number" id="cNum" value="${ultCorsa.num}" min="1"></div></div>
     <label>Fase</label><select id="cFase"><option value="classifica">🏆 Classifica (prime ${CORSE_CLASSIFICA} corse)</option><option value="scontri">⚔️ Scontri diretti</option></select>
-    <label>Nome premio</label><input id="cNome" placeholder="es. Premio Gaida - Corsa Tris">
-    <label>Data e ora di partenza ufficiale (i pronostici chiudono 1 ora prima)</label><input type="datetime-local" id="cOra">
+    <label>Nome premio <span class="muted">(facoltativo)</span></label><input id="cNome" placeholder="se lo lasci vuoto: «${ultCorsa.num}ª corsa ${esc(ultCorsa.ipp || 'Ippodromo')}»">
+    <label>Data e ora di partenza ufficiale (i pronostici chiudono 1 ora prima)</label><input type="datetime-local" id="cOra" value="${ultCorsa.ora}">
     <label>🔗 Link alla pagina dei partenti (facoltativo)</label><input id="cLink" type="url" inputmode="url" placeholder="incolla qui il link della corsa con i cavalli">
     <div id="cMsg"></div><button class="btn full" onclick="nuovaCorsa()">Aggiungi corsa</button></div>
   <div class="card"><h3 style="font-size:22px">2. Inserisci arrivo ufficiale</h3>
@@ -1594,10 +1601,12 @@ function leggiPartenti(txt){
     return { n: +m[1], cavallo: cav.trim(), driver: drv.join(' - ').trim() };
   }).filter(Boolean);
 }
+let ultCorsa = { ipp: '', num: 1, ora: '' };
 async function nuovaCorsa(){
   const ora = $('cOra').value, ipp = $('cIpp').value.trim();
   if (!ora || !ipp) return msg('cMsg','Compila ippodromo e orario di partenza');
   if (!compSel) return msg('cMsg','Crea prima una competizione');
+  const num = +$('cNum').value || 1, nomeP = $('cNome').value.trim() || `${num}ª corsa ${ipp}`;
   const giorno = ora.slice(0, 10);
   let g = giornateAll.find(x => x.competizione_id === compSel && x.data === giorno)?.id;
   if (!g) {
@@ -1605,9 +1614,11 @@ async function nuovaCorsa(){
     if (eg) return msg('cMsg', eg.message);
     g = ng.id;
   }
-  const { error } = await sb.from('corse').insert({ giornata_id: +g, ippodromo: ipp, numero: +$('cNum').value || 1, nome: $('cNome').value.trim(), orario: new Date(ora).toISOString(), partenti: [], fase: $('cFase').value, link_partenti: linkOk($('cLink').value) });
+  const { error } = await sb.from('corse').insert({ giornata_id: +g, ippodromo: ipp, numero: num, nome: nomeP, orario: new Date(ora).toISOString(), partenti: [], fase: $('cFase').value, link_partenti: linkOk($('cLink').value) });
   if (error) return msg('cMsg', error.message);
-  await carica(); renderAdmin(); msg('cMsg', 'Corsa aggiunta ✅', 'ok');
+  const o = new Date(new Date(ora).getTime() + 30 * 60000); o.setMinutes(o.getMinutes() - o.getTimezoneOffset());
+  ultCorsa = { ipp, num: num + 1, ora: o.toISOString().slice(0, 16) };
+  await carica(); renderAdmin(); msg('cMsg', `Corsa aggiunta ✅ Ho già preparato la ${num + 1}ª: controlla l'orario.`, 'ok');
 }
 async function salvaArrivo(id){
   const a = [1,2,3].map(k => +$(`a${k}-${id}`).value).filter(Boolean);
