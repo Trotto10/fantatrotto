@@ -407,7 +407,7 @@ sb.auth.onAuthStateChange(async (ev, session) => {
 const fmtDataOra = d => new Date(d).toLocaleString('it-IT', { weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
 function toLocalInput(d){ if (!d) return ''; const x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0,16); }
 function statoComp(c){
-  if (!c) return 'chiuse'; const now = new Date();
+  if (!c) return 'chiuse'; if (c.annullata) return 'annullata'; const now = new Date();
   if (c.iscrizioni_apertura && now < new Date(c.iscrizioni_apertura)) return 'prima';
   if (c.iscrizioni_chiusura && now > new Date(c.iscrizioni_chiusura)) return 'chiuse';
   return 'aperte';
@@ -416,12 +416,13 @@ function testoStato(c){
   const st = statoComp(c);
   if (st === 'prima') return `🕒 Iscrizioni dalle <b>${fmtDataOra(c.iscrizioni_apertura)}</b>${c.iscrizioni_chiusura?` alle <b>${fmtDataOra(c.iscrizioni_chiusura)}</b>`:''}`;
   if (st === 'aperte') return `✅ Iscrizioni aperte${c.iscrizioni_chiusura?` fino alle <b>${fmtDataOra(c.iscrizioni_chiusura)}</b>`:''}`;
+  if (st === 'annullata') return `↩️ <b>Annullata</b>: non si è raggiunto il minimo di ${c.min_iscritti} iscritti${c.iscritti_annullo != null ? ` (erano ${c.iscritti_annullo})` : ''}. Ferri rimborsati.`;
   return '⛔ Iscrizioni chiuse, competizione in corso';
 }
 const compCorrente = () => competizioni.find(c => c.id === compSel);
 async function mostraIscrizioni(){
   const { data } = await sb.from('competizioni').select('*').order('created_at', { ascending:false });
-  const aperte = (data || []).filter(c => statoComp(c) !== 'chiuse');
+  const aperte = (data || []).filter(c => !['chiuse','annullata'].includes(statoComp(c)));
   $('iscrInfo').innerHTML = aperte.map(c => `<div class="msg ${statoComp(c)==='aperte'?'ok':'err'}">🏆 <b>${esc(c.nome)}</b>: ${testoStato(c).replace(/^\S+ /,'')}</div>`).join('');
 }
 function renderBarraComp(){
@@ -434,11 +435,11 @@ function renderBarraComp(){
   const puo = !c.solo_soci || isSocio(me.id);
   const azione = sono ? `<span class="badge b-aperta">✅ Iscritto</span>`
     : st === 'aperte' ? (puo ? `<button class="btn-oro" style="padding:8px 14px" onclick="iscrivitiComp()">Iscriviti${costo ? ` · ${ferro(16)} ${costo}` : ''}</button>` : `<button class="btn-ghost" style="padding:8px 12px" onclick="chiudiTendina();go('soci')">🔒 Solo Soci</button>`)
-    : `<span class="badge b-fine">Non iscritto</span>`;
+    : st === 'annullata' ? `<span class="badge b-fine">Annullata</span>` : `<span class="badge b-fine">Non iscritto</span>`;
   const sel = competizioni.length > 1 ? `<select onchange="cambiaComp(this.value)" style="margin:0 0 8px">${competizioni.map(x => `<option value="${x.id}" ${x.id===compSel?'selected':''}>${esc(x.nome)}${x.solo_soci?' 🔒 Soci':''}${x.costo_ferri?' · '+x.costo_ferri+' Ferri':''}</option>`).join('')}</select>` : '';
   $('compBar').innerHTML = `<div style="text-align:right;margin-bottom:8px">${c.solo_soci ? boxSoci() : saldoBox}</div><div class="card" style="margin:0">${sel}<div class="row" style="align-items:center"><div style="flex:3"><b style="font-family:'Bebas Neue';font-size:24px;color:var(--verde)">🏆 ${esc(c.nome)}</b>
     ${c.solo_soci ? '<span class="badge-all">🔒 TORNEO SOCI · montepremi in Ferri Premio</span>' : ''}
-    <div class="muted" style="font-size:13px">${testoStato(c)} · ${iscritti.size} iscritti</div>
+    <div class="muted" style="font-size:13px">${testoStato(c)}${st === 'annullata' ? '' : ` · ${iscritti.size} iscritti${c.min_iscritti > 0 ? ` <b style="color:${iscritti.size >= c.min_iscritti ? '#1d7a4f' : 'var(--rosso)'}">(minimo ${c.min_iscritti} per partire)</b>` : ''}`}</div>
     ${c.solo_soci ? `<div style="font-size:13px;margin-top:3px">Ingresso ${costo ? `🔒 ${ferro(14)} <b>${costo}</b> Ferri Soci` : '<b>gratis</b>'} · Montepremi 🏆 ${ferro(14)} <b>${mont}</b> Ferri Premio</div>`
       : (costo || c.montepremi_extra) ? `<div style="font-size:13px;margin-top:3px">Ingresso ${costo ? `${ferro(14)} <b>${costo}</b>` : '<b>gratis</b>'} · Montepremi ${ferro(14)} <b>${mont}</b></div>` : ''}</div>
     <div style="flex:0;white-space:nowrap">${azione}</div></div>
@@ -462,6 +463,12 @@ function applicaComp(){
   iscritti = new Set(partecipanti.filter(x => x.competizione_id === compSel).map(x => x.user_id));
   renderBarraComp();
 }
+async function annullaComp(){
+  const c = compCorrente(); if (!c) return;
+  if (!confirm(`Annullare "${c.nome}"? Tutti gli iscritti (${iscritti.size}) riavranno i loro Ferri e la competizione si chiude.`)) return;
+  const { error } = await sb.rpc('annulla_competizione', { cid: c.id });
+  if (error) return alert(error.message.replace(/^.*?:\s*/, '')); await carica(); renderAdmin();
+}
 async function salvaComp(){
   const a = $('iA').value, c = $('iC').value;
   if (a && c && new Date(c) <= new Date(a)) return msg('iMsg', 'La chiusura deve essere dopo l\'apertura');
@@ -470,7 +477,7 @@ async function salvaComp(){
   const nome = $('iNome').value.trim(); if (!nome) return msg('iMsg', 'Scrivi il nome della competizione');
   const rip = $('iRip').value.replace(/\s/g,''); if (!/^\d+(,\d+)*$/.test(rip) || rip.split(',').reduce((a,b)=>a+ +b,0) > 100) return msg('iMsg','Ripartizione non valida (es. 50,30,20 – totale massimo 100)');
   const soloSoci = $('iSoci').checked;
-  const { error } = await sb.from('competizioni').update({ nome, corse_classifica: nc, solo_soci: soloSoci, costo_ferri: Math.max(0, +$('iCosto').value || 0), montepremi_extra: Math.max(0, +$('iExtra').value || 0), ripartizione: rip, iscrizioni_apertura: a ? new Date(a).toISOString() : null, iscrizioni_chiusura: c ? new Date(c).toISOString() : null }).eq('id', compSel);
+  const { error } = await sb.from('competizioni').update({ nome, corse_classifica: nc, solo_soci: soloSoci, costo_ferri: Math.max(0, +$('iCosto').value || 0), montepremi_extra: Math.max(0, +$('iExtra').value || 0), ripartizione: rip, min_iscritti: Math.max(0, parseInt($('iMin').value, 10) || 0), iscrizioni_apertura: a ? new Date(a).toISOString() : null, iscrizioni_chiusura: c ? new Date(c).toISOString() : null }).eq('id', compSel);
   if (error) return msg('iMsg', error.message);
   await carica(); renderAdmin(); msg('iMsg', 'Competizione salvata ✅', 'ok');
 }
@@ -1382,10 +1389,13 @@ function adminComp(){
     <label><input type="checkbox" id="iSoci" style="width:auto" ${c.solo_soci?'checked':''}> 🔒 Torneo riservato ai Soci (ingresso con i Ferri Soci, montepremi pagato in Ferri Premio da usare in vetrina)</label>
     <div class="row"><div><label>Ingresso in Ferri d'Oro</label><input type="number" id="iCosto" min="0" value="${c.costo_ferri||0}"></div><div><label>Ferri extra nel montepremi</label><input type="number" id="iExtra" min="0" value="${c.montepremi_extra||0}"></div></div>
     <label>Ripartizione montepremi in % (1°,2°,3°…)</label><input id="iRip" value="${esc(c.ripartizione||'50,30,20')}" placeholder="50,30,20">
+    <label>👥 Minimo iscritti per partire <span class="muted">(0 = nessun minimo)</span></label><input type="number" id="iMin" min="0" value="${c.min_iscritti || 0}">
+    <p class="muted" style="font-size:12px;margin-top:-4px">Alla chiusura delle iscrizioni, se gli iscritti sono meno del minimo, la competizione si annulla da sola e i Ferri tornano a tutti (entro 5 minuti).</p>
     <label>Apertura iscrizioni</label><input type="datetime-local" id="iA" value="${toLocalInput(c.iscrizioni_apertura)}">
     <label>Chiusura iscrizioni</label><input type="datetime-local" id="iC" value="${toLocalInput(c.iscrizioni_chiusura)}">
     <p class="muted">${testoStato(c)}</p>
     <div id="iMsg"></div><button class="btn full" onclick="salvaComp()">Salva competizione</button>
+    ${c.annullata ? '<div class="msg err" style="margin-top:8px">↩️ Competizione annullata e rimborsata</div>' : `<button class="btn-ghost full" style="margin-top:8px;color:var(--rosso)" onclick="annullaComp()">↩️ Annulla competizione e rimborsa i Ferri</button>`}
     ${!c.montepremi_assegnato ? `<button class="btn-ghost full" style="margin-top:8px" onclick="aggiungiMontepremi()">➕ ${ferro(16)} Aggiungi Ferri al montepremi (anche a torneo in corso)</button>` : ''}
     ${c.montepremi_assegnato ? `<p class="muted" style="margin-top:8px">✅ Montepremi già assegnato</p>` : `<button class="btn-oro full" style="margin-top:8px" onclick="assegnaMontepremi()">${ferro(18)} Assegna montepremi (${(c.costo_ferri||0)*iscritti.size + (c.montepremi_extra||0)} ${c.solo_soci ? 'Ferri Premio' : 'Ferri'})</button>`}
     <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">👥 Iscritti (${lista.length})</summary>
