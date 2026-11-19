@@ -276,6 +276,9 @@ async function resetPass(e){
 async function logout(){ fermaChat(); if (presenza) { await presenza.untrack(); sb.removeChannel(presenza); presenza = null; } await sb.auth.signOut(); }
 
 // ---------- CHAT ----------
+const CHAT_EMOJI = ['🐎','🐴','🏇','🦄','🎠','🥕','🌾','🍎','🧲','🏆','🥇','🥈','🥉','🏁','⏱️','🎯','🍀'];
+const emojiVietate = t => { let x = t; CHAT_EMOJI.forEach(e => { x = x.split(e).join(''); }); x = x.replace(/\uFE0F/g, ''); return /[\u2600-\u27BF\u2B00-\u2BFF\u200D\u2300-\u23FF]|[\u{1F000}-\u{1FAFF}]/u.test(x); };
+function metEmoji(e){ const i = $('chatTxt'); if (!i) return; const p = i.selectionStart ?? i.value.length; i.value = i.value.slice(0, p) + e + i.value.slice(i.selectionEnd ?? p); i.focus(); i.selectionStart = i.selectionEnd = p + e.length; }
 let chatMsgs = [], chatCanale = null, chatAperta = false, chatNuovi = 0, chatBan = null;
 const oraBreve = d => new Date(d).toLocaleTimeString('it-IT', { hour:'2-digit', minute:'2-digit' });
 async function avviaChat(){
@@ -312,7 +315,7 @@ function aggiornaBarraChat(){
 function apriChat(){
   chatAperta = true; chatNuovi = 0; aggiornaBarraChat();
   apriModal(`<h2 style="color:var(--verde);font-size:28px">💬 Chat FantaTrotto</h2>
-    <p class="muted" style="font-size:12px">Rispetta tutti. Chi offende viene <b>bloccato 1 ora</b>; alla seconda volta viene <b>escluso dalla chat</b>.</p>
+    <p class="muted" style="font-size:12px">Rispetta tutti. Chi offende viene <b>bloccato 1 ora</b>; alla seconda volta viene <b>escluso dalla chat</b>. Emoji consentite: solo quelle dei cavalli.</p>
     <div class="chat-list" id="chatList"></div><div id="chatScrivi"></div>${profilo.is_admin ? '<div id="chatAdmin"></div>' : ''}`);
   disegnaChat(); disegnaInputChat(); if (profilo.is_admin) caricaBloccatiChat();
 }
@@ -325,10 +328,12 @@ function disegnaChat(nuovo){
 }
 function disegnaInputChat(){
   const el = $('chatScrivi'); if (!el) return; const ban = statoBanChat();
-  el.innerHTML = ban ? `<div class="msg err">${ban}</div>` : `<div style="display:flex;gap:8px"><input id="chatTxt" maxlength="300" placeholder="Scrivi un messaggio…" style="margin:0" onkeydown="if(event.key==='Enter')inviaChat()"><button class="btn-oro" style="flex:0 0 auto" onclick="inviaChat()">Invia</button></div><div id="chatMsg"></div>`;
+  el.innerHTML = ban ? `<div class="msg err">${ban}</div>` : `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">${CHAT_EMOJI.map(e => `<button type="button" onclick="metEmoji('${e}')" style="flex:0 0 auto;background:#fff;border:1px solid #ddd;border-radius:9px;font-size:22px;padding:3px 6px;line-height:1">${e}</button>`).join('')}</div>
+    <div style="display:flex;gap:8px"><input id="chatTxt" maxlength="300" placeholder="Scrivi un messaggio…" style="margin:0" onkeydown="if(event.key==='Enter')inviaChat()"><button class="btn-oro" style="flex:0 0 auto" onclick="inviaChat()">Invia</button></div><div id="chatMsg"></div>`;
 }
 async function inviaChat(){
   const inp = $('chatTxt'); const t = (inp?.value || '').trim(); if (!t) return;
+  if (emojiVietate(t)) { msg('chatMsg', 'Nella chat puoi usare solo le emoji dei cavalli qui sopra 🐎'); return; }
   inp.disabled = true;
   const { data, error } = await sb.rpc('invia_chat', { testo: t });
   inp.disabled = false;
