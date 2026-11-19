@@ -85,6 +85,13 @@ label{font-size:13px;font-weight:600;color:var(--grigio);display:block;margin-bo
 .full{width:100%}.hidden{display:none!important}
 .wrap{max-width:720px;margin:0 auto;padding:16px}
 .card{background:var(--card);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+details.tnd>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;user-select:none}
+details.tnd>summary::-webkit-details-marker{display:none}
+details.tnd>summary h3{flex:1;margin:0!important}
+details.tnd>summary .frc{font-size:18px;color:var(--verde);transition:transform .2s}
+details.tnd[open]>summary .frc{transform:rotate(180deg)}
+details.tnd[open]>summary{margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #eee}
+details.tnd .nb{background:#d62828;color:#fff;border-radius:10px;font-size:12px;font-weight:700;padding:1px 8px}
 .muted{color:var(--grigio);font-size:14px}
 .row{display:flex;gap:10px;align-items:center}.row>*{flex:1}
 .msg{padding:10px;border-radius:10px;margin-bottom:10px;font-size:14px}.msg.err{background:#fde8e6;color:var(--rosso)}.msg.ok{background:#e3f4ea;color:var(--verde)}
@@ -773,7 +780,7 @@ function adminScontri(){
       : `<p>Tabellone concluso 🏆</p>`;
     corpo += `<button class="btn-rosso full" style="margin-top:12px" onclick="resetTabellone()">Cancella tabellone</button>`;
   }
-  return `<div class="card"><h3 style="font-size:22px">4. Scontri diretti</h3>${corpo}</div>`;
+  return `<div class="card"><h3 style="font-size:22px">3. Scontri diretti</h3>${corpo}</div>`;
 }
 async function generaTabellone(){
   const lista = await classificaCalcolata(); let N = 16; while (N > lista.length) N /= 2;
@@ -1215,11 +1222,18 @@ function adminFerri(){
     <div id="sMsg"></div><div class="row"><button class="btn-oro" onclick="impostaSocio(true)">Attiva</button><button class="btn-ghost" onclick="impostaSocio(false)">Togli</button></div>
     <p class="muted" style="margin-top:8px;font-size:13px">Soci attivi: ${Object.keys(utenti).filter(isSocio).map(id => esc(utenti[id]) + ' (fino al ' + new Date(soci[id]).toLocaleDateString('it-IT') + ')').join(', ') || 'nessuno'}</p></div>`;
 }
+async function eliminaRichiesta(id){
+  if (!confirm('Eliminare questa richiesta dalla lista? (non cambia i Ferri dell\'utente)')) return;
+  const { error } = await sb.from('richieste_premi').delete().eq('id', id);
+  if (error) return alert(error.message); caricaAdminFerri();
+}
 async function caricaAdminFerri(){
   const el = $('admRich'); if (!el) return;
   const { data } = await sb.from('richieste_premi').select('*').order('created_at', { ascending:false }).limit(100);
   el.innerHTML = (data||[]).length ? data.map(r => `<div class="row" style="border-bottom:1px solid #eee;padding:8px 0;align-items:center"><div style="flex:3"><b>${esc(r.premio_nome)}</b><div class="muted" style="font-size:12px">${esc(utenti[r.user_id]||'?')} · ${fmtDataOra(r.created_at)} · ${r.stato}</div></div>
-    ${r.stato==='in attesa' ? `<button class="btn" style="flex:0;padding:6px 10px" onclick="statoRichiesta(${r.id},'consegnato')">✅</button><button class="btn-rosso" style="flex:0;padding:6px 10px" title="Annulla e rimborsa" onclick="annullaRichiesta(${r.id})">↩️</button>` : ''}</div>`).join('') : '<p class="muted">Nessuna richiesta.</p>';
+    ${r.stato==='in attesa' ? `<button class="btn" style="flex:0;padding:6px 10px" title="Segna come consegnato" onclick="statoRichiesta(${r.id},'consegnato')">✅</button><button class="btn-rosso" style="flex:0;padding:6px 10px" title="Annulla e rimborsa" onclick="annullaRichiesta(${r.id})">↩️</button>`
+      : r.stato==='consegnato' ? `<button class="btn-ghost" style="flex:0;padding:6px 10px;white-space:nowrap" title="Ho sbagliato: torna in attesa" onclick="statoRichiesta(${r.id},'in attesa')">↺ Non consegnato</button><button class="btn-ghost" style="flex:0;padding:6px 10px" title="Elimina dalla lista" onclick="eliminaRichiesta(${r.id})">🗑</button>`
+      : `<button class="btn-ghost" style="flex:0;padding:6px 10px" title="Elimina dalla lista" onclick="eliminaRichiesta(${r.id})">🗑</button>`}</div>`).join('') : '<p class="muted">Nessuna richiesta.</p>';
   const d = document.querySelector('#admSaldi')?.closest('details');
   const dm = document.querySelector('#admMulti')?.closest('details');
   if (dm && !dm.dataset.ok) { dm.dataset.ok = 1; dm.addEventListener('toggle', async () => { if (!dm.open) return;
@@ -1594,7 +1608,33 @@ async function pagaTutteSfide(){
   await carica(); renderAdmin();
 }
 
-function renderAdmin(){
+
+const adminAperti = new Set();
+function tendineAdmin(){
+  const pg = $('pg-admin'); if (!pg) return;
+  const ora = new Date();
+  const conta = {
+    'arrivo ufficiale': corse.filter(c => !c.arrivo?.length && new Date(c.orario) <= ora).length,
+    'Sit &': sfide.filter(s => s.stato === 'aperta' && statoSfida(s) === 'corso' && sfidaFinita(s)).length + corseAll.filter(c => c.fase === 'torneo' && !c.arrivo?.length && new Date(c.orario) <= ora).length
+  };
+  [...pg.children].forEach(card => {
+    if (!card.classList?.contains('card') || card.dataset.tnd) return;
+    const h = card.firstElementChild; if (!h || h.tagName !== 'H3') return;
+    const titolo = h.textContent.trim();
+    const det = document.createElement('details'); det.className = 'tnd';
+    if (adminAperti.has(titolo)) det.open = true;
+    det.addEventListener('toggle', () => { det.open ? adminAperti.add(titolo) : adminAperti.delete(titolo); });
+    const sum = document.createElement('summary'); sum.appendChild(h);
+    const n = Object.entries(conta).find(([k]) => titolo.includes(k))?.[1];
+    if (n) { const b = document.createElement('span'); b.className = 'nb'; b.textContent = n; sum.appendChild(b); }
+    const fr = document.createElement('span'); fr.className = 'frc'; fr.textContent = '▾'; sum.appendChild(fr);
+    det.appendChild(sum);
+    while (card.firstChild) det.appendChild(card.firstChild);
+    card.appendChild(det); card.dataset.tnd = 1;
+  });
+}
+function renderAdmin(){ _renderAdmin(); tendineAdmin(); }
+function _renderAdmin(){
   if (!profilo.is_admin) return;
   const optG = giornate.map(g => `<option value="${g.id}">${esc(g.nome)} (${fmtData(g.data)})</option>`).join('');
   const daChiudere = corse.filter(c => !c.arrivo?.length && new Date(c.orario) <= new Date());
