@@ -35,6 +35,21 @@ body.area-sitgo{--verde:#173c6b}
 .chips{display:flex;gap:6px;overflow:auto;margin-bottom:10px}.chips button{background:#fff;border:1px solid #d1d5db;color:var(--testo);padding:8px 12px;white-space:nowrap}.chips button.on{background:var(--verde);color:#fff;border-color:var(--verde)}
 .allev{display:flex;gap:10px;overflow:auto;padding-bottom:4px}.allev div{flex:0 0 92px;text-align:center;cursor:pointer}.allev img,.allev .ini{width:72px;height:72px;border-radius:50%;object-fit:contain;background:#fff;border:3px solid var(--oro);margin:0 auto 4px;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue';font-size:28px;color:var(--oro);background:#111}.allev img{background:#fff}.allev span{font-size:12px;font-weight:700}
 body.has-sponsor{padding-bottom:110px}
+#chatBar{position:fixed;left:0;right:0;bottom:0;z-index:7;height:40px;background:#0d0d0d;color:#fff;display:flex;align-items:center;overflow:hidden;cursor:pointer;border-top:2px solid var(--oro)}
+body.has-sponsor #chatBar{bottom:calc(88px + env(safe-area-inset-bottom))}
+body.is-admin #chatBar{left:0}
+body.has-chat{padding-bottom:130px}body.has-chat.has-sponsor{padding-bottom:150px}
+#chatBar .cb-lab{flex:0 0 auto;height:100%;display:flex;align-items:center;gap:6px;padding:0 12px;background:var(--oro);color:#111;font-weight:800;font-size:13px;position:relative;z-index:1}
+#chatBar .cb-lab .n{background:#d62828;color:#fff;border-radius:10px;font-size:11px;padding:1px 6px}
+#chatBar .cb-vp{flex:1;overflow:hidden;height:100%;display:flex;align-items:center}
+#chatBar .cb-track{display:flex;white-space:nowrap;width:max-content;animation:sp-scroll linear infinite;font-size:14px}
+#chatBar .cb-track span{padding:0 22px}#chatBar .cb-track b{color:#f5d77e}
+.chat-list{height:52vh;overflow-y:auto;background:#f6f3ea;border-radius:12px;padding:10px;margin:8px 0}
+.chat-m{background:#fff;border-radius:12px;padding:7px 10px;margin-bottom:7px;max-width:88%;box-shadow:0 1px 2px rgba(0,0,0,.08);word-wrap:break-word}
+.chat-m.mio{margin-left:auto;background:#fff4d1}
+.chat-m .u{font-weight:800;font-size:13px;color:var(--verde)}.chat-m .t{font-size:11px;color:#888;margin-left:6px}
+.chat-m .adm{margin-top:4px;display:flex;gap:6px}.chat-m .adm button{padding:3px 8px;font-size:12px;border-radius:7px}
+
 body.is-admin #sponsorBar{left:60px}
 #adminBtn{position:fixed;left:0;bottom:0;z-index:8;width:60px;height:calc(88px + env(safe-area-inset-bottom));padding:0 0 env(safe-area-inset-bottom);border-radius:0;background:#111;color:#e9c463;font-size:26px;border-top:3px solid #111;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
 #adminBtn small{font-size:9px;letter-spacing:1px;color:#e9c463}
@@ -176,6 +191,7 @@ td.n{text-align:right;font-weight:700}tr.me{background:#fff8e6}
   </nav>
 </section>
 
+<div id="chatBar" class="hidden" onclick="apriChat()"><div class="cb-lab">💬 CHAT <span class="n hidden" id="chatNuovi">0</span></div><div class="cb-vp"><div class="cb-track" id="chatTrack"></div></div></div>
 <div id="sponsorBar" class="hidden"></div>
 <button id="adminBtn" class="hidden" onclick="chiudiTendina();go('admin')">⚙️<small>ADMIN</small></button>
 <div id="modal" class="hidden" onclick="if(event.target===this)chiudiModal()"><div class="modal-box" id="modalBox"></div></div>
@@ -257,7 +273,93 @@ async function resetPass(e){
   const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
   msg('authMsg', error ? error.message : 'Ti abbiamo mandato una email per reimpostare la password', error ? 'err' : 'ok');
 }
-async function logout(){ if (presenza) { await presenza.untrack(); sb.removeChannel(presenza); presenza = null; } await sb.auth.signOut(); }
+async function logout(){ fermaChat(); if (presenza) { await presenza.untrack(); sb.removeChannel(presenza); presenza = null; } await sb.auth.signOut(); }
+
+// ---------- CHAT ----------
+let chatMsgs = [], chatCanale = null, chatAperta = false, chatNuovi = 0, chatBan = null;
+const oraBreve = d => new Date(d).toLocaleTimeString('it-IT', { hour:'2-digit', minute:'2-digit' });
+async function avviaChat(){
+  if (chatCanale) return;
+  const [{ data }, b] = await Promise.all([ sb.from('chat_messaggi').select('*').order('created_at', { ascending:false }).limit(80), caricaBanChat() ]);
+  if (!data) return; // tabella non ancora creata
+  chatMsgs = data.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+  document.body.classList.add('has-chat'); $('chatBar').classList.remove('hidden');
+  aggiornaBarraChat();
+  chatCanale = sb.channel('chat-ft').on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messaggi' }, ev => {
+    if (chatMsgs.some(m => m.id === ev.new.id)) return;
+    chatMsgs.push(ev.new); if (chatMsgs.length > 150) chatMsgs.shift();
+    if (chatAperta) disegnaChat(true); else if (ev.new.user_id !== me.id) { chatNuovi++; }
+    aggiornaBarraChat();
+  }).on('postgres_changes', { event:'DELETE', schema:'public', table:'chat_messaggi' }, ev => {
+    chatMsgs = chatMsgs.filter(m => m.id !== ev.old.id); aggiornaBarraChat(); if (chatAperta) disegnaChat();
+  }).subscribe();
+}
+function fermaChat(){ if (chatCanale) { sb.removeChannel(chatCanale); chatCanale = null; } $('chatBar').classList.add('hidden'); document.body.classList.remove('has-chat'); }
+async function caricaBanChat(){ const { data } = await sb.from('chat_ban').select('*').eq('user_id', me.id).maybeSingle(); chatBan = data || null; }
+function statoBanChat(){
+  if (!chatBan) return null;
+  if (chatBan.per_sempre) return 'Sei stato <b>escluso dalla chat</b> per linguaggio offensivo ripetuto.';
+  if (chatBan.fino && new Date(chatBan.fino) > new Date()) return `Sei <b>bloccato fino alle ${oraBreve(chatBan.fino)}</b> per linguaggio offensivo. Alla prossima volta verrai escluso dalla chat.`;
+  return null;
+}
+function aggiornaBarraChat(){
+  const ult = chatMsgs.slice(-15);
+  const items = ult.length ? ult.map(m => `<span><b>${esc(m.username)}:</b> ${esc(m.testo)}</span>`).join('') : '<span>Nessun messaggio: tocca qui e scrivi tu il primo! 💬</span>';
+  const t = $('chatTrack'); t.innerHTML = items + items;
+  const len = t.textContent.length; t.style.animationDuration = Math.max(14, len * 0.11) + 's';
+  $('chatNuovi').textContent = chatNuovi > 99 ? '99+' : chatNuovi; $('chatNuovi').classList.toggle('hidden', !chatNuovi);
+}
+function apriChat(){
+  chatAperta = true; chatNuovi = 0; aggiornaBarraChat();
+  apriModal(`<h2 style="color:var(--verde);font-size:28px">💬 Chat FantaTrotto</h2>
+    <p class="muted" style="font-size:12px">Rispetta tutti. Chi offende viene <b>bloccato 1 ora</b>; alla seconda volta viene <b>escluso dalla chat</b>.</p>
+    <div class="chat-list" id="chatList"></div><div id="chatScrivi"></div>${profilo.is_admin ? '<div id="chatAdmin"></div>' : ''}`);
+  disegnaChat(); disegnaInputChat(); if (profilo.is_admin) caricaBloccatiChat();
+}
+function disegnaChat(nuovo){
+  const el = $('chatList'); if (!el) return;
+  const giu = !nuovo || el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  el.innerHTML = chatMsgs.length ? chatMsgs.map(m => `<div class="chat-m ${m.user_id===me.id?'mio':''}"><span class="u">${esc(m.username)}</span>${badgeSocio(m.user_id)}<span class="t">${fmtData(m.created_at).split(' ').slice(0,2).join(' ')} ${oraBreve(m.created_at)}</span><div>${esc(m.testo)}</div>
+    ${profilo.is_admin && m.user_id !== me.id ? `<div class="adm"><button class="btn-ghost" onclick="cancellaMsgChat(${m.id})">🗑</button><button class="btn-ghost" onclick="bloccaChat('${m.user_id}','${esc(m.username).replace(/'/g,'')}',false)">🔇 1 ora</button><button class="btn-rosso" onclick="bloccaChat('${m.user_id}','${esc(m.username).replace(/'/g,'')}',true)">⛔ Escludi</button></div>` : profilo.is_admin ? `<div class="adm"><button class="btn-ghost" onclick="cancellaMsgChat(${m.id})">🗑</button></div>` : ''}</div>`).join('') : '<p class="muted" style="text-align:center;margin-top:30px">Ancora nessun messaggio. Rompi il ghiaccio! 🐎</p>';
+  if (giu) el.scrollTop = el.scrollHeight;
+}
+function disegnaInputChat(){
+  const el = $('chatScrivi'); if (!el) return; const ban = statoBanChat();
+  el.innerHTML = ban ? `<div class="msg err">${ban}</div>` : `<div style="display:flex;gap:8px"><input id="chatTxt" maxlength="300" placeholder="Scrivi un messaggio…" style="margin:0" onkeydown="if(event.key==='Enter')inviaChat()"><button class="btn-oro" style="flex:0 0 auto" onclick="inviaChat()">Invia</button></div><div id="chatMsg"></div>`;
+}
+async function inviaChat(){
+  const inp = $('chatTxt'); const t = (inp?.value || '').trim(); if (!t) return;
+  inp.disabled = true;
+  const { data, error } = await sb.rpc('invia_chat', { testo: t });
+  inp.disabled = false;
+  if (error) { msg('chatMsg', error.message.replace(/^.*?:\s*/, '')); return; }
+  if (data === 'bloccato' || data === 'escluso') { await caricaBanChat(); disegnaInputChat(); return; }
+  inp.value = ''; inp.focus();
+  if (!chatCanale) { await avviaChat(); }
+}
+async function cancellaMsgChat(id){
+  if (!confirm('Cancellare questo messaggio?')) return;
+  const { error } = await sb.from('chat_messaggi').delete().eq('id', id); if (error) return alert(error.message);
+  chatMsgs = chatMsgs.filter(m => m.id !== id); disegnaChat(); aggiornaBarraChat();
+}
+async function bloccaChat(uid, nome, sempre){
+  if (!confirm(sempre ? `Escludere ${nome} dalla chat per sempre?` : `Bloccare ${nome} per 1 ora?`)) return;
+  const { data: v } = await sb.from('chat_ban').select('avvisi').eq('user_id', uid).maybeSingle();
+  const { error } = await sb.from('chat_ban').upsert({ user_id: uid, fino: new Date(Date.now() + 3600e3).toISOString(), per_sempre: sempre, avvisi: (v?.avvisi || 0) + 1, motivo: 'Deciso dall\'admin', aggiornato: new Date().toISOString() });
+  if (error) return alert(error.message);
+  caricaBloccatiChat();
+}
+async function caricaBloccatiChat(){
+  const el = $('chatAdmin'); if (!el) return;
+  const { data } = await sb.from('chat_ban').select('*').order('aggiornato', { ascending:false });
+  const att = (data || []).filter(b => b.per_sempre || (b.fino && new Date(b.fino) > new Date()));
+  el.innerHTML = `<h3 style="font-size:18px;margin-top:12px">⚙️ Utenti bloccati (${att.length})</h3>` + (att.length ? att.map(b => `<div class="row" style="align-items:center;border-top:1px solid #eee;padding:6px 0"><div style="flex:3"><b>${esc(utenti[b.user_id] || '?')}</b><div class="muted" style="font-size:12px">${b.per_sempre ? '⛔ escluso per sempre' : '🔇 fino alle ' + oraBreve(b.fino)} · ${b.avvisi} avvis${b.avvisi===1?'o':'i'}</div></div><button class="btn-ghost" style="flex:0 0 auto;padding:6px 10px" onclick="sbloccaChat('${b.user_id}')">Sblocca</button></div>`).join('') : '<p class="muted">Nessuno.</p>')
+    + `<p class="muted" style="font-size:12px;margin-top:8px">"Sblocca" azzera anche gli avvisi.</p>`;
+}
+async function sbloccaChat(uid){
+  const { error } = await sb.from('chat_ban').delete().eq('user_id', uid); if (error) return alert(error.message);
+  caricaBloccatiChat();
+}
 
 // ---------- UTENTI ONLINE ----------
 let presenza = null, onlineList = [];
@@ -390,7 +492,7 @@ async function avvia(){
   profilo = p || { username: me.email, is_admin: false };
   $('chip').innerHTML = `👤 ${esc(profilo.username)} · <a href="#" onclick="logout()" style="color:var(--oro)">esci</a>`;
   $('adminBtn').classList.toggle('hidden', !profilo.is_admin); document.body.classList.toggle('is-admin', !!profilo.is_admin);
-  avviaPresenza(); mostraSponsor();
+  avviaPresenza(); mostraSponsor(); avviaChat();
   try { await sb.rpc('riscuoti_benvenuto'); } catch(e){}
   try { let dev = localStorage.getItem('ft_dev'); if (!dev) { dev = (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2)); localStorage.setItem('ft_dev', dev); }
     await sb.from('accessi').upsert({ user_id: me.id, device_id: dev, user_agent: navigator.userAgent.slice(0, 200), ultimo: new Date().toISOString() }, { onConflict: 'user_id,device_id' }); } catch(e){}
@@ -738,7 +840,7 @@ function bottoniContatto(x, testo){
   return b.length ? `<div class="contatti">${b.join('')}</div>` : '<p class="muted" style="margin-top:10px">Nessun contatto inserito.</p>';
 }
 function apriModal(html){ $('modalBox').innerHTML = `<button class="modal-x" onclick="chiudiModal()">✕</button>` + html; $('modal').classList.remove('hidden'); }
-function chiudiModal(){ $('modal').classList.add('hidden'); }
+function chiudiModal(){ $('modal').classList.add('hidden'); chatAperta = false; }
 async function caricaSponsor(){
   const [sp, pu] = await Promise.all([ sb.from('sponsor').select('*').order('ordine').order('id'), sb.from('puledri').select('*').order('created_at', { ascending:false }) ]);
   sponsor = sp.data || []; puledri = pu.data || []; mostraSponsor();
