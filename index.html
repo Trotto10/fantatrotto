@@ -1214,13 +1214,17 @@ function adminFerri(){
 
   <div class="card"><h3 style="font-size:22px">🏅 Soci</h3>
     <p class="muted" style="font-size:13px">Essere Socio è gratuito e su invito: lo attivi tu qui sotto.</p>
-    <label>💬 WhatsApp dell'organizzatore (per il tasto "Scrivi all'organizzatore" nell'Area Soci)</label><input id="sWa" inputmode="tel" value="${esc(imp.whatsapp_org||'')}" placeholder="333 1234567">
-    <button class="btn full" onclick="salvaInfoSoci()">Salva</button>
-    <h4 style="margin-top:12px">Attiva / rinnova un Socio</h4>
-    <select id="sUser"><option value="">Scegli utente…</option>${opt}</select>
+    <h4 style="margin-top:14px">🏅 Soci attivi (${Object.keys(utenti).filter(isSocio).length})</h4>
+    ${(ids => ids.length ? ids.map(id => `<div class="row" style="align-items:center;border-bottom:1px solid #eee;padding:7px 0"><div style="flex:3"><b>${esc(utenti[id])}</b> 🏅<div class="muted" style="font-size:12px">fino al ${new Date(soci[id]).toLocaleDateString('it-IT')} · 🔒 ${saldiSociCache[id] ?? '…'} Ferri Soci</div></div><button class="btn-ghost" style="flex:0 0 auto;padding:6px 10px" title="Rinnova di un anno" onclick="rinnovaSocio('${id}')">+1 anno</button><button class="btn-rosso" style="flex:0 0 auto;padding:6px 10px" title="Togli Socio" onclick="togliSocio('${id}')">✖</button></div>`).join('') : '<p class="muted">Nessun Socio attivo.</p>')(Object.keys(utenti).filter(isSocio).sort((a,b) => utenti[a].localeCompare(utenti[b])))}
+    ${(ids => ids.length ? `<p class="muted" style="font-size:13px;margin-top:6px">⏳ Scaduti: ${ids.map(id => `${esc(utenti[id])} (${new Date(soci[id]).toLocaleDateString('it-IT')})`).join(', ')}</p>` : '')(Object.keys(utenti).filter(id => soci[id] && !isSocio(id)))}
+    <h4 style="margin-top:14px">➕ Attiva un nuovo Socio</h4>
+    <select id="sUser"><option value="">Scegli utente…</option>${Object.entries(utenti).filter(([id]) => !isSocio(id)).sort((a,b) => a[1].localeCompare(b[1])).map(([id,n]) => `<option value="${id}">${esc(n)}${soci[id] ? ' (scaduto)' : ''}</option>`).join('')}</select>
     <label>Socio fino al</label><input type="date" id="sFino" value="${new Date(Date.now()+365*86400000).toISOString().slice(0,10)}">
-    <div id="sMsg"></div><div class="row"><button class="btn-oro" onclick="impostaSocio(true)">Attiva</button><button class="btn-ghost" onclick="impostaSocio(false)">Togli</button></div>
-    <p class="muted" style="margin-top:8px;font-size:13px">Soci attivi: ${Object.keys(utenti).filter(isSocio).map(id => esc(utenti[id]) + ' (fino al ' + new Date(soci[id]).toLocaleDateString('it-IT') + ')').join(', ') || 'nessuno'}</p></div>`;
+    <div id="sMsg"></div><button class="btn-oro full" onclick="impostaSocio(true)">Attiva Socio</button>
+    <h4 style="margin-top:16px">💬 Contatto organizzatore</h4>
+    <label>WhatsApp dell'organizzatore (per il tasto "Scrivi all'organizzatore" nell'Area Soci)</label><input id="sWa" inputmode="tel" value="${esc(imp.whatsapp_org||'')}" placeholder="333 1234567">
+    <button class="btn full" onclick="salvaInfoSoci()">Salva</button>
+  </div>`;
 }
 async function eliminaRichiesta(id){
   if (!confirm('Eliminare questa richiesta dalla lista? (non cambia i Ferri dell\'utente)')) return;
@@ -1257,7 +1261,7 @@ async function assegnaFerri(){
   if (port === 'soci' && q > 0 && !isSocio(uid) && !confirm(`${utenti[uid]} non è Socio. Dare comunque i Ferri Soci?`)) return;
   if (!confirm(`${q > 0 ? 'Dare' : 'Togliere'} ${Math.abs(q)} ${port === 'soci' ? 'Ferri Soci' : 'Ferri d\'Oro'} a ${utenti[uid]}?`)) return;
   const { error } = await sb.from('movimenti_ferri').insert({ user_id: uid, importo: q, causale: c, portafoglio: port });
-  if (error) return msg('fMsg2', error.message); await carica(); renderAdmin(); msg('fMsg2', 'Fatto ✅', 'ok');
+  if (error) return msg('fMsg2', error.message); saldiSociCache = {}; await carica(); renderAdmin(); msg('fMsg2', 'Fatto ✅', 'ok');
 }
 async function ferriATuttiSoci(){
   const q = parseInt($('fSociQta').value, 10), c = $('fSociCaus').value.trim() || 'Ferri Soci dall\'organizzazione';
@@ -1267,7 +1271,7 @@ async function ferriATuttiSoci(){
   if (!confirm(`Dare ${q} Ferri Soci a: ${ids.map(id => utenti[id]).join(', ')}?`)) return;
   const rif = 'soci-' + Date.now();
   const { error } = await sb.from('movimenti_ferri').insert(ids.map(id => ({ user_id: id, importo: q, causale: c, portafoglio: 'soci', rif })));
-  if (error) return msg('fMsg3', error.message); await carica(); renderAdmin(); msg('fMsg3', `Fatto ✅ ${ids.length} Soci`, 'ok');
+  if (error) return msg('fMsg3', error.message); saldiSociCache = {}; await carica(); renderAdmin(); msg('fMsg3', `Fatto ✅ ${ids.length} Soci`, 'ok');
 }
 async function salvaPremio(){
   const nome = $('prNome').value.trim(), costo = parseInt($('prCosto').value, 10);
@@ -1283,6 +1287,20 @@ async function eliminaPremio(id){ if (!confirm('Eliminare il premio?')) return; 
 async function statoRichiesta(id, stato){ await sb.from('richieste_premi').update({ stato }).eq('id', id); caricaAdminFerri(); }
 async function annullaRichiesta(id){ if (!confirm('Annullare la richiesta e rimborsare i Ferri?')) return; const { error } = await sb.rpc('annulla_richiesta', { rid: id }); if (error) alert(error.message); await carica(); renderAdmin(); }
 async function salvaInfoSoci(){ const { error } = await sb.from('impostazioni').upsert({ id: 1, link_socio: null, prezzo_socio: null, whatsapp_org: $('sWa').value.trim() || null }); if (error) return alert(error.message); await carica(); renderAdmin(); }
+let saldiSociCache = {};
+async function caricaSaldiSoci(){ const { data } = await sb.from('saldi_ferri').select('user_id,saldo_soci'); const n = {}; (data||[]).forEach(r => n[r.user_id] = r.saldo_soci || 0); const cambia = JSON.stringify(n) !== JSON.stringify(saldiSociCache); saldiSociCache = n; if (cambia && $('pg-admin') && !$('pg-admin').classList.contains('hidden')) renderAdmin(); }
+async function rinnovaSocio(uid){
+  const base = soci[uid] && new Date(soci[uid]) > new Date() ? new Date(soci[uid]) : new Date();
+  base.setFullYear(base.getFullYear() + 1); const fino = base.toISOString().slice(0,10);
+  if (!confirm(`Rinnovare ${utenti[uid]} fino al ${base.toLocaleDateString('it-IT')}?`)) return;
+  const { error } = await sb.from('profiles').update({ socio_fino: fino }).eq('id', uid); if (error) return alert(error.message);
+  await carica(); renderAdmin();
+}
+async function togliSocio(uid){
+  if (!confirm(`Togliere ${utenti[uid]} dai Soci?`)) return;
+  const { error } = await sb.from('profiles').update({ socio_fino: null }).eq('id', uid); if (error) return alert(error.message);
+  await carica(); renderAdmin();
+}
 async function impostaSocio(attiva){
   const uid = $('sUser').value; if (!uid) return msg('sMsg', 'Scegli un utente');
   const { error } = await sb.from('profiles').update({ socio_fino: attiva ? $('sFino').value : null }).eq('id', uid);
@@ -1641,7 +1659,7 @@ function _renderAdmin(){
   const tabs = `<div class="row" style="margin-bottom:12px"><button class="${area==='gioco'||area==='portale'?'btn':'btn-ghost'}" onclick="area='gioco';aggiornaArea();renderAdmin()">🏆 FantaTrotto</button><button class="${area==='sitgo'?'btn':'btn-ghost'}" onclick="area='sitgo';aggiornaArea();renderAdmin()">⚡ Sit &amp; Go</button><button class="${area==='mercato'?'btn':'btn-ghost'}" onclick="area='mercato';aggiornaArea();renderAdmin()">🐴 Mercato</button></div>`;
   if (area === 'sitgo') { $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Admin</h2>${tabs}${adminSfide()}`; return; }
   if (area === 'mercato') { $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Admin</h2>${tabs}${adminPuledri()}${adminSponsor()}`; return; }
-  setTimeout(caricaAdminFerri, 0);
+  setTimeout(caricaAdminFerri, 0); if (!Object.keys(saldiSociCache).length) setTimeout(caricaSaldiSoci, 0);
   $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Admin</h2>${tabs}
   ${adminComp()}
   ${adminFerri()}
