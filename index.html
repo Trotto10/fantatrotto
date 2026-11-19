@@ -486,7 +486,7 @@ async function nuovaComp(){
   const { data, error } = await sb.from('competizioni').insert({ nome: nome.trim() }).select().single();
   if (error) return alert(error.message);
   compSel = data.id; try { localStorage.setItem('ft_comp', data.id); } catch(e){}
-  await carica(); renderAdmin(); alert('Competizione creata! Ora imposta le date di iscrizione e salva.');
+  await carica(); adminAperti.add('🏆 Competizione: ' + nome.trim()); renderAdmin(); alert(`"${nome.trim()}" creata, senza iscritti: ognuno sceglierà se iscriversi.\nOra imposta ingresso, minimo iscritti e date di iscrizione, poi premi Salva competizione.`);
 }
 async function eliminaComp(){
   const c = compCorrente(); if (!c) return;
@@ -1384,7 +1384,9 @@ function adminComp(){
   const altri = Object.keys(utenti).filter(id => !iscritti.has(id)).map(id => ({ id, n: utenti[id] })).sort((a,b) => a.n.localeCompare(b.n));
   return `<div class="card"><h3 style="font-size:22px">🏆 Competizione: ${esc(c.nome)}</h3>
     <p class="muted" style="margin-bottom:8px">Il pannello lavora sulla competizione scelta in alto. Tutti possono registrarsi al sito; alla competizione si iscrive solo chi lo fa tra apertura e chiusura.</p>
-    <label>Nome</label><input id="iNome" value="${esc(c.nome)}">
+    <button class="btn-oro full" style="margin-bottom:12px" onclick="nuovaComp()">➕ Crea una NUOVA competizione (parte vuota, senza iscritti)</button>
+    <div class="msg" style="background:#f6f1e3;margin:0 0 10px;font-size:13px">✏️ Qui sotto modifichi la competizione <b>${esc(c.nome)}</b> (quella scelta in alto). Cambiare il nome la <b>rinomina</b>, non ne crea una nuova.</div>
+    <label>Rinomina questa competizione</label><input id="iNome" value="${esc(c.nome)}">
     <label>Numero di corse a classifica (prima degli scontri diretti)</label><input type="number" id="iN" min="1" max="100" value="${c.corse_classifica || 10}">
     <label><input type="checkbox" id="iSoci" style="width:auto" ${c.solo_soci?'checked':''}> 🔒 Torneo riservato ai Soci (ingresso con i Ferri Soci, montepremi pagato in Ferri Premio da usare in vetrina)</label>
     <div class="row"><div><label>Ingresso in Ferri d'Oro</label><input type="number" id="iCosto" min="0" value="${c.costo_ferri||0}"></div><div><label>Ferri extra nel montepremi</label><input type="number" id="iExtra" min="0" value="${c.montepremi_extra||0}"></div></div>
@@ -1402,7 +1404,7 @@ function adminComp(){
       ${lista.map(u => `<div class="row" style="border-bottom:1px solid #eee;padding:6px 0"><div style="flex:3">${esc(u.n)}</div><button class="btn-ghost" style="flex:0;padding:4px 10px" onclick="togliPartecipante('${u.id}')">✖</button></div>`).join('') || '<p class="muted">Nessun iscritto.</p>'}
       ${altri.length ? `<div class="row" style="margin-top:8px"><select id="addUser" style="margin:0"><option value="">Aggiungi a mano un utente…</option>${altri.map(u => `<option value="${u.id}">${esc(u.n)}</option>`).join('')}</select><button class="btn" style="flex:0" onclick="aggiungiPartecipante()">+</button></div>` : ''}
     </details>
-    <div class="row" style="margin-top:12px"><button class="btn-ghost" onclick="nuovaComp()">+ Nuova competizione</button><button class="btn-rosso" style="flex:0" onclick="eliminaComp()">🗑</button></div></div>`;
+    <div class="row" style="margin-top:12px"><button class="btn-rosso full" onclick="eliminaComp()">🗑 Elimina questa competizione</button></div></div>`;
 }
 // ---------- TORNEI DEL GIORNO (stile sit & go) ----------
 const corseSfida = s => corseAll.filter(c => c.id === s.corsa_id);
