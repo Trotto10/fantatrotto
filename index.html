@@ -1133,6 +1133,7 @@ async function renderSoci(){
   const io = isSocio(me.id);
   $('pg-soci').innerHTML = `<div class="hero" style="text-align:center;background:linear-gradient(135deg,#3a2c0c,#111)"><div style="font-size:50px">🏅</div><h2 style="font-size:34px;color:#f5d77e">Area Soci FantaTrotto</h2>
       <p>${io ? `Sei Socio fino al <b>${new Date(soci[me.id]).toLocaleDateString('it-IT')}</b>. Grazie del sostegno!` : 'Sostieni FantaTrotto e sblocca i vantaggi Soci'}</p></div>
+    ${imp.whatsapp_org ? `<a href="https://wa.me/${numWa(imp.whatsapp_org)}?text=${encodeURIComponent(`Ciao, sono ${profilo.username} di FantaTrotto. ${io ? 'Ti scrivo dall\'Area Soci: ' : 'Vorrei informazioni per diventare Socio.'}`)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;background:#25D366;color:#fff;font-weight:800;font-size:17px;padding:14px;border-radius:12px;margin:12px 0 14px;box-shadow:0 3px 10px rgba(0,0,0,.15)">💬 Scrivi all'organizzatore su WhatsApp</a>` : ''}
     <div class="card"><h3 style="font-size:22px;color:var(--verde)">Vantaggi dei Soci</h3><ul style="margin:8px 0 0 18px;line-height:1.9">
       <li>🏅 <b>Badge Socio</b> accanto al nome in classifica e nei pronostici</li>
       <li>🏆 Accesso ai <b>Tornei Soci</b> (l'ingresso può essere in Ferri d'Oro, regalati dall'organizzazione; in palio trofei e titoli)</li>
@@ -1193,6 +1194,7 @@ function adminFerri(){
 
   <div class="card"><h3 style="font-size:22px">🏅 Soci</h3>
     <div class="row"><div><label>Link per pagare (PayPal, Satispay…)</label><input id="sLink" value="${esc(imp.link_socio||'')}" placeholder="https://paypal.me/…"></div></div>
+    <label>💬 WhatsApp dell'organizzatore (per il tasto "Scrivi all'organizzatore" nell'Area Soci)</label><input id="sWa" inputmode="tel" value="${esc(imp.whatsapp_org||'')}" placeholder="333 1234567">
     <label>Prezzo mostrato</label><input id="sPrezzo" value="${esc(imp.prezzo_socio||'')}" placeholder="es. 10€ all'anno">
     <button class="btn full" onclick="salvaInfoSoci()">Salva</button>
     <h4 style="margin-top:12px">Attiva / rinnova un Socio</h4>
@@ -1242,7 +1244,7 @@ async function togglePremio(id, attivo){ await sb.from('premi').update({ attivo 
 async function eliminaPremio(id){ if (!confirm('Eliminare il premio?')) return; await sb.from('premi').delete().eq('id', id); await carica(); renderAdmin(); }
 async function statoRichiesta(id, stato){ await sb.from('richieste_premi').update({ stato }).eq('id', id); caricaAdminFerri(); }
 async function annullaRichiesta(id){ if (!confirm('Annullare la richiesta e rimborsare i Ferri?')) return; const { error } = await sb.rpc('annulla_richiesta', { rid: id }); if (error) alert(error.message); await carica(); renderAdmin(); }
-async function salvaInfoSoci(){ const { error } = await sb.from('impostazioni').upsert({ id: 1, link_socio: $('sLink').value.trim() || null, prezzo_socio: $('sPrezzo').value.trim() || null }); if (error) return alert(error.message); await carica(); renderAdmin(); }
+async function salvaInfoSoci(){ const { error } = await sb.from('impostazioni').upsert({ id: 1, link_socio: $('sLink').value.trim() || null, prezzo_socio: $('sPrezzo').value.trim() || null, whatsapp_org: $('sWa').value.trim() || null }); if (error) return alert(error.message); await carica(); renderAdmin(); }
 async function impostaSocio(attiva){
   const uid = $('sUser').value; if (!uid) return msg('sMsg', 'Scegli un utente');
   const { error } = await sb.from('profiles').update({ socio_fino: attiva ? $('sFino').value : null }).eq('id', uid);
