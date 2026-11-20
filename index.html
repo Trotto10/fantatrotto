@@ -695,10 +695,28 @@ async function aggiungiPartecipante(){
 }
 
 // ---------- DATI ----------
+async function schermataAttesa(p){
+  $('app').classList.add('hidden');
+  let wa = ''; try { const { data } = await sb.from('impostazioni').select('whatsapp_org').eq('id', 1).single(); wa = data?.whatsapp_org || ''; } catch(e) {}
+  const nome = p?.username || '';
+  const link = wa ? `https://wa.me/${numWa(wa)}?text=${encodeURIComponent(`Ciao! Mi sono appena registrato su FantaTrotto come ${nome}, puoi accettare la mia registrazione?`)}` : '';
+  let d = $('attesa'); if (!d) { d = document.createElement('section'); d.id = 'attesa'; document.body.appendChild(d); }
+  d.innerHTML = `<div style="max-width:420px;margin:40px auto;padding:20px;text-align:center">
+    <img src="${LOGO}" style="width:150px;max-width:50%">
+    <div class="card" style="margin-top:16px">
+      ${p?.rifiutato ? `<h2 style="color:var(--rosso);font-size:28px">Registrazione non accettata</h2><p>Ciao <b>${esc(nome)}</b>, l'organizzazione non ha accettato la tua registrazione.</p>`
+      : `<div style="font-size:50px">⏳</div><h2 style="color:var(--verde);font-size:28px">Registrazione in attesa</h2>
+        <p>Ciao <b>${esc(nome)}</b>, la tua registrazione è arrivata! Prima di entrare deve essere <b>accettata dall'organizzazione</b>.</p>
+        <p class="muted" style="font-size:13px">Appena viene accettata, riapri il sito o premi "Controlla di nuovo".</p>`}
+      ${link ? `<a href="${esc(link)}" target="_blank" rel="noopener" style="display:flex;justify-content:center;align-items:center;gap:6px;background:#25d366;color:#fff;text-decoration:none;font-weight:800;padding:12px;border-radius:12px;margin-top:12px">💬 Scrivi all'organizzatore</a>` : ''}
+      ${p?.rifiutato ? '' : `<button class="btn-oro full" style="margin-top:10px" onclick="location.reload()">🔄 Controlla di nuovo</button>`}
+      <button class="btn-ghost full" style="margin-top:8px" onclick="$('attesa').remove();logout()">Esci</button></div></div>`;
+}
 async function avvia(){
   $('auth').classList.add('hidden'); $('app').classList.remove('hidden');
   let { data: p } = await sb.from('profiles').select('*').eq('id', me.id).single();
   profilo = p || { username: me.email, is_admin: false };
+  if (!profilo.is_admin && (!p || p.approvato === false || p.rifiutato)) return schermataAttesa(p);
   disegnaChip(); setInterval(aggiornaChip, 1500);
   $('adminBtn').classList.toggle('hidden', !profilo.is_admin); document.body.classList.toggle('is-admin', !!profilo.is_admin);
   avviaPresenza(); mostraSponsor(); avviaChat();
@@ -2292,6 +2310,7 @@ function tendineAdmin(){
   const pg = $('pg-admin'); if (!pg) return;
   const ora = new Date();
   const conta = {
+    'Nuove registrazioni': (nuoviUtenti || []).length,
     'arrivo ufficiale': corse.filter(c => !c.arrivo?.length && new Date(c.orario) <= ora).length,
     'Sit &': sfide.filter(s => s.stato === 'aperta' && statoSfida(s) === 'corso' && sfidaFinita(s)).length + corseAll.filter(c => c.fase === 'torneo' && !c.arrivo?.length && new Date(c.orario) <= ora).length
   };
@@ -2311,6 +2330,24 @@ function tendineAdmin(){
     card.appendChild(det); card.dataset.tnd = 1;
   });
 }
+let nuoviUtenti = null;
+async function caricaNuovi(){ const { data, error } = await sb.from('profiles').select('*').or('approvato.eq.false,rifiutato.eq.true'); nuoviUtenti = error ? [] : (data || []); if (!Object.keys(telefoni).length) await caricaTelefoni(); renderAdmin(); }
+function adminNuovi(){
+  if (nuoviUtenti === null) { setTimeout(caricaNuovi, 0); return ''; }
+  const att = nuoviUtenti.filter(u => !u.rifiutato), rif = nuoviUtenti.filter(u => u.rifiutato);
+  return `<div class="card"><h3 style="font-size:22px">🆕 Nuove registrazioni</h3>
+    <p class="muted" style="font-size:13px">Chi si registra non entra nel sito finché non lo accetti qui.</p>
+    ${att.length ? att.map(u => `<div class="row" style="align-items:center;border-bottom:1px solid #eee;padding:8px 0"><div style="flex:3;min-width:0"><b>${esc(u.username || '?')}</b><div class="muted" style="font-size:13px">📱 ${telefoni[u.id] ? `<a href="tel:${telefoni[u.id]}">${esc(telefoni[u.id])}</a>` : 'nessun numero'}</div></div>
+      ${telefoni[u.id] ? `<a class="btn-ghost" style="flex:0 0 auto;padding:6px 10px;text-decoration:none" href="https://wa.me/${numWa(telefoni[u.id])}" target="_blank" rel="noopener">💬</a>` : ''}
+      <button class="btn-oro" style="flex:0 0 auto;padding:6px 12px" onclick="approvaUtente('${u.id}',true)">✅ Accetta</button><button class="btn-rosso" style="flex:0 0 auto;padding:6px 10px" onclick="approvaUtente('${u.id}',false)">✖</button></div>`).join('') : '<p class="muted">✅ Nessuna registrazione in attesa.</p>'}
+    ${rif.length ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">✖ Rifiutati (${rif.length})</summary>${rif.map(u => `<div class="row" style="align-items:center;border-bottom:1px solid #eee;padding:6px 0"><div style="flex:3">${esc(u.username || '?')}</div><button class="btn-ghost" style="flex:0 0 auto;padding:5px 10px;font-size:13px" onclick="approvaUtente('${u.id}',true)">Accetta comunque</button></div>`).join('')}</details>` : ''}</div>`;
+}
+async function approvaUtente(uid, ok){
+  const u = nuoviUtenti.find(x => x.id === uid);
+  if (!confirm(ok ? `Accettare ${u?.username}? Potrà entrare nel sito.` : `Rifiutare ${u?.username}? Non potrà entrare.`)) return;
+  const { error } = await sb.rpc('approva_utente', { uid, ok }); if (error) return alert(error.message);
+  await caricaNuovi();
+}
 function renderAdmin(){ _renderAdmin(); tendineAdmin(); }
 function _renderAdmin(){
   if (!profilo.is_admin) return;
@@ -2322,6 +2359,7 @@ function _renderAdmin(){
   if (area === 'mercato') { $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Admin</h2>${tabs}${adminPuledri()}${adminSponsor()}`; return; }
   setTimeout(caricaAdminFerri, 0); if (!Object.keys(saldiSociCache).length) setTimeout(caricaSaldiSoci, 0);
   $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Admin</h2>${tabs}
+  ${adminNuovi()}
   ${adminComp()}
   ${adminUtenti()}
   ${adminFerri()}
