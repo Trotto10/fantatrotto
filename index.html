@@ -265,8 +265,9 @@ header .area-sw button i{font-style:normal}
       <label>Nome utente</label><input id="rUser" required minlength="3" maxlength="20" placeholder="es. Varenne93">
       <label>Numero di cellulare</label><div style="display:flex;gap:6px;align-items:center"><span style="padding:12px 10px;background:#eee;border-radius:10px;font-weight:700;white-space:nowrap;flex:0 0 auto">🇮🇹 +39</span><input id="rTel" required inputmode="tel" autocomplete="tel-national" placeholder="333 1234567" style="margin:0"></div>
       <p class="muted" style="font-size:12px;margin-top:4px">Lo userai per entrare. Un numero = un account.</p>
+      <div style="background:#eaf6ef;border-radius:10px;padding:8px 10px;font-size:12px;margin-top:6px">🔒 <b>Il tuo numero è privato:</b> lo vedono solo gli amministratori, solo per verificare e gestire il tuo account. Non viene mai mostrato agli altri utenti, non viene ceduto a nessuno e non lo usiamo per pubblicità.</div>
       <label>Password (min 6 caratteri)</label><input type="password" id="rPass" required minlength="6" autocomplete="new-password">
-      <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-top:10px"><input type="checkbox" id="rPriv" required style="width:auto;margin-top:2px"> <span>Ho almeno 18 anni e ho letto l'<a href="#" onclick="mostraPrivacy();return false">informativa privacy</a></span></label>
+      <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-top:10px"><input type="checkbox" id="rPriv" required style="width:auto;margin-top:2px"> <span>Ho almeno 18 anni, ho letto l'<a href="#" onclick="mostraPrivacy();return false">informativa privacy</a> e acconsento all'uso del mio numero di telefono per l'accesso e la gestione dell'account</span></label>
       <button class="btn-oro full" type="submit">Crea account</button>
       <p class="muted" style="font-size:12px;text-align:center;margin-top:8px">Dopo la registrazione l'organizzazione deve accettare il tuo account.</p>
     </form>
@@ -277,13 +278,12 @@ header .area-sw button i{font-style:normal}
 <!-- ================= APP ================= -->
 <section id="app" class="hidden">
   <header><div class="in"><div class="brand" onclick="go('home')" style="cursor:pointer"><img src="" class="logoIcona" alt="FantaTrotto"><h1>FANTA<span>TROTTO</span></h1></div><div style="display:flex;gap:6px;align-items:center"><button class="user-chip" id="onlineBtn" onclick="toggleOnline()" style="border:0;color:#fff;cursor:pointer">🟢 …</button><span class="user-chip" id="chip"></span></div></div>
-  <div class="area-sw" id="areaSw"><button data-p="home" onclick="go('home')"><i>🏠</i> HOME</button><button data-p="articoli" onclick="go('articoli')"><i>📰</i> ARTICOLI</button><button data-p="notizie" onclick="go('notizie')"><i>🗞️</i> NOTIZIE</button></div>
+  <div class="area-sw" id="areaSw"><button data-p="home" onclick="go('home')"><i>🏠</i> HOME</button><button data-p="articoli" onclick="go('articoli')"><i>📰</i> ARTICOLI</button></div>
   <div id="onlinePanel" class="hidden" style="max-width:720px;margin:8px auto 0"></div></header>
   <main class="wrap">
     <div id="pg-home"></div>
     <div id="pg-articoli" class="hidden"></div>
     <div id="pg-articolo" class="hidden"></div>
-    <div id="pg-notizie" class="hidden"></div>
     <div id="pg-admin" class="hidden"></div>
     <p class="muted" style="text-align:center;font-size:12px;margin:20px 0 10px"><a href="#" onclick="mostraPrivacy();return false" class="muted">Informativa privacy</a></p>
   </main>
@@ -586,9 +586,9 @@ async function carica(){
 }
 function go(p){
   paginaAttuale = p;
-  ['home','articoli','articolo','notizie','admin'].forEach(x => $('pg-' + x).classList.toggle('hidden', x !== p));
+  ['home','articoli','articolo','admin'].forEach(x => $('pg-' + x).classList.toggle('hidden', x !== p));
   document.querySelectorAll('#areaSw button').forEach(b => b.classList.toggle('on', b.dataset.p === p || (p === 'articolo' && b.dataset.p === 'articoli')));
-  ({ home: renderHome, articoli: renderArticoli, notizie: renderNotizie, admin: renderAdmin })[p]?.();
+  ({ home: renderHome, articoli: renderArticoli, admin: renderAdmin })[p]?.();
   scrollTo(0, 0);
 }
 function apriModal(html){ $('modalBox').innerHTML = `<button class="modal-x" onclick="chiudiModal()">✕</button>` + html; $('modal').classList.remove('hidden'); }
@@ -604,15 +604,12 @@ const riassunto = a => a.sottotitolo || String(a.testo || '').replace(/\s+/g, ' 
 const cardArt = (a, big) => `<div class="art-card ${big ? 'big' : ''}" onclick="apriArticolo(${a.id})"><div class="ft" style="${a.foto ? `background-image:url('${esc(a.foto)}')` : ''}">${!a.foto ? '<div style="color:#f5d77e;font-size:64px;text-align:center;line-height:' + (big ? 240 : 190) + 'px">🏇</div>' : ''}${a.categoria ? `<span class="cat">${esc(a.categoria)}</span>` : ''}</div>
   <div class="bd"><h3>${esc(a.titolo)}</h3><p>${esc(riassunto(a))}</p><div class="art-meta" style="margin:6px 0 0">${fmtDataLunga(a.created_at)}${a.autore && utenti[a.autore] ? ' · ' + esc(utenti[a.autore]) : ''}</div></div></div>`;
 function renderHome(){
-  $('pg-notizie').innerHTML = '';
   const pub = pubblicati(), ev = pub.find(a => a.in_evidenza) || pub[0], altri = pub.filter(a => a !== ev).slice(0, 5);
-  $('pg-home').innerHTML = `<div class="hero"><h2>Ciao ${esc(profilo.username)} 👋</h2><p>Benvenuto su FantaTrotto: articoli, notizie e chat tra appassionati di trotto.</p></div>
+  $('pg-home').innerHTML = `<div class="hero"><h2>Ciao ${esc(profilo.username)} 👋</h2><p>Benvenuto su FantaTrotto: articoli e chat tra appassionati di trotto.</p></div>
     ${ev ? `<h2 style="color:var(--verde);font-size:24px;margin:4px 0 8px">⭐ In evidenza</h2>${cardArt(ev, true)}` : '<div class="card muted">I primi articoli arriveranno presto! 🏇</div>'}
     ${altri.length ? `<div class="card"><h3 style="font-size:22px;color:var(--verde)">📰 Ultimi articoli</h3>${altri.map(a => `<div class="art-mini" onclick="apriArticolo(${a.id})"><div class="th" style="${a.foto ? `background-image:url('${esc(a.foto)}')` : ''}">${a.foto ? '' : '<div style="text-align:center;line-height:58px;font-size:26px">🏇</div>'}</div><div style="min-width:0"><b>${esc(a.titolo)}</b><div class="muted" style="font-size:12px">${a.categoria ? esc(a.categoria) + ' · ' : ''}${fmtData(a.created_at)}</div></div></div>`).join('')}
       <button class="btn-ghost full" style="margin-top:10px" onclick="go('articoli')">Tutti gli articoli</button></div>` : ''}
-    <div class="card"><h3 style="font-size:22px;color:var(--verde)">🗞️ Giornale del trotto</h3><div id="giornale"><p class="muted">Caricamento notizie…</p></div></div>
     <div class="card" style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="apriChat()"><div style="font-size:34px">💬</div><div><b>Chat degli appassionati</b><div class="muted" style="font-size:13px">Commenta le corse e parla con gli altri appassionati</div></div></div>`;
-  notizieTutte = false; caricaGiornale();
 }
 function renderArticoli(){
   const pub = pubblicati(), cats = [...new Set(pub.map(a => a.categoria).filter(Boolean))].sort();
@@ -638,28 +635,12 @@ function apriArticolo(id){
       <div style="display:flex;gap:8px;margin-top:12px"><a href="${share}" target="_blank" rel="noopener" style="flex:1;text-align:center;background:#25d366;color:#fff;text-decoration:none;font-weight:800;padding:10px;border-radius:12px">📤 Condividi</a><button class="btn-oro" style="flex:1" onclick="apriChat()">💬 Commenta in chat</button></div>
       ${profilo.is_admin ? `<button class="btn-ghost full" style="margin-top:8px" onclick="editArt=${a.id};go('admin')">✏️ Modifica articolo</button>` : ''}</div></div>`;
 }
-function renderNotizie(){
-  $('pg-home').innerHTML = '';
-  $('pg-notizie').innerHTML = `<h2 style="color:var(--verde);font-size:30px;margin-bottom:4px">🗞️ Notizie dal mondo del trotto</h2><p class="muted" style="font-size:13px;margin-bottom:10px">Le ultime notizie dai siti di ippica, aggiornate ogni giorno.</p><div class="card"><div id="giornale"><p class="muted">Caricamento notizie…</p></div></div>`;
-  notizieTutte = true; caricaGiornale();
-}
-// ---------- GIORNALE ----------
-let notizieTutte = false;
-async function caricaGiornale(){
-  const { data, error } = await sb.from('notizie').select('*').order('pubblicata', { ascending:false, nullsFirst:false }).limit(notizieTutte ? 60 : 8);
-  if (!$('giornale')) return;
-  if (error || !data?.length) { $('giornale').innerHTML = '<p class="muted">Nessuna notizia per ora. Il giornale si aggiorna ogni giorno.</p>'; return; }
-  $('giornale').innerHTML = data.map(n => `<a href="${esc(n.link)}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit;padding:10px 0;border-bottom:1px solid #eee">
-      <b style="font-size:15px">${esc(n.titolo)}</b><div class="muted" style="font-size:12px;margin-top:3px">${esc(n.fonte||'')}${n.pubblicata?' · '+fmtDataOra(n.pubblicata):''}</div></a>`).join('')
-    + `<button class="btn-ghost full" style="margin-top:10px" onclick="notizieTutte=!notizieTutte;caricaGiornale()">${notizieTutte?'Mostra meno':'Tutte le notizie'}</button>`;
-}
-
-
 function mostraPrivacy(){
   apriModal(`<h2 style="color:var(--verde);font-size:26px">Informativa privacy</h2><div style="font-size:14px;line-height:1.5">
     <p><b>Chi tratta i dati:</b> l'organizzazione di FantaTrotto${imp.whatsapp_org ? ' (contatto WhatsApp ' + esc(imp.whatsapp_org) + ')' : ''}.</p>
     <p><b>Quali dati:</b> nome utente, numero di cellulare, password (salvata cifrata) e i messaggi che scrivi in chat.</p>
     <p><b>Perché:</b> per farti accedere al sito, per verificare e accettare le registrazioni e per far funzionare la chat. Non usiamo i dati per pubblicità e non li vendiamo a nessuno.</p>
+    <p><b>Il numero di telefono:</b> serve solo come nome di accesso e per permettere agli amministratori di verificare chi si registra e contattarti per il tuo account (per esempio se dimentichi la password). Non viene mostrato agli altri utenti, non viene ceduto a terzi e non viene usato per pubblicità o messaggi promozionali. Puoi chiedere di cambiarlo o cancellarlo in qualsiasi momento.</p>
     <p><b>Chi li vede:</b> il numero di telefono lo vedono solo gli amministratori; il nome utente e i messaggi della chat generale li vedono gli altri utenti registrati. I messaggi privati li vedete solo voi due.</p>
     <p><b>Dove sono:</b> su servizi cloud (Supabase) usati per far funzionare il sito. I messaggi della chat si cancellano da soli dopo 30 giorni.</p>
     <p><b>I tuoi diritti:</b> puoi chiedere in qualsiasi momento di vedere, correggere o cancellare i tuoi dati e il tuo account scrivendo all'organizzazione.</p>
