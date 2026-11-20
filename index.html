@@ -51,6 +51,19 @@ body.area-sitgo{--verde:#173c6b}
 @keyframes pkIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 @keyframes pkShake{0%,100%{transform:rotate(0)}20%{transform:rotate(-8deg)}40%{transform:rotate(8deg)}60%{transform:rotate(-6deg)}80%{transform:rotate(6deg)}}
 @keyframes pkCoin{0%{transform:translate(0,0) scale(.4);opacity:1}100%{transform:translate(var(--dx),var(--dy)) rotate(var(--r)) scale(1);opacity:0}}
+
+.vt-pista{background:#3a7d44;border-radius:14px;padding:8px 8px 8px 8px;position:relative;overflow:hidden;border:3px solid #2a5c32}
+.vt-lane{position:relative;height:30px;border-bottom:1px dashed rgba(255,255,255,.35)}
+.vt-lane:last-child{border-bottom:0}
+.vt-h{position:absolute;top:1px;font-size:24px;transition:left .12s linear;white-space:nowrap}
+.vt-h b{display:inline-block;font-size:11px;background:#fff;color:#111;border-radius:50%;width:18px;height:18px;line-height:18px;text-align:center;margin-right:2px;vertical-align:middle}
+.vt-flip .vt-h{transform:scaleX(-1)} .vt-flip .vt-h b{transform:scaleX(-1)}
+.vt-fin{position:absolute;top:0;bottom:0;right:26px;width:6px;background:repeating-linear-gradient(#fff 0 6px,#111 6px 12px)}
+.vt-cav{display:flex;align-items:center;gap:8px;padding:9px 6px;border-bottom:1px solid #eee;cursor:pointer}
+.vt-cav.sel{background:#fff6dc}
+.vt-num{width:28px;height:28px;border-radius:7px;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.vt-q{flex:0 0 auto;min-width:52px;text-align:center;border:2px solid var(--oro);border-radius:8px;padding:3px 4px;font-weight:800;font-size:14px}
+.vt-q small{display:block;font-size:9px;font-weight:700;color:#888}
 .modal-x{position:absolute;top:10px;right:12px;background:#f3f4f6;border-radius:50%;width:36px;height:36px;padding:0;font-size:18px}
 .contatti{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.contatti a{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px;border-radius:12px;text-decoration:none;font-weight:700;background:var(--verde);color:#fff}
 .contatti a.wa{background:#1fa855}.contatti a.alt{background:#fff;color:var(--verde);border:1px solid var(--verde)}
@@ -216,6 +229,7 @@ td.n{text-align:right;font-weight:700}tr.me{background:#fff8e6}
     <div id="pg-scontri" class="hidden"></div>
     <div id="pg-sfide" class="hidden"></div>
     <div id="pg-tsoci" class="hidden"></div>
+    <div id="pg-virtuali" class="hidden"></div>
     <div id="pg-regsg" class="hidden"></div>
     <div id="pg-admin" class="hidden"></div>
   </main>
@@ -677,9 +691,9 @@ function go(p){
   paginaAttuale = p;
   if (p !== 'admin' && !(PAGINE_COMUNI.includes(p) && area === 'sitgo')) { const a = p === 'portale' ? 'portale' : PAGINE_MERCATO.includes(p) ? 'mercato' : PAGINE_SITGO.includes(p) ? 'sitgo' : 'gioco'; if (a !== area) { area = a; aggiornaArea(); } }
   else if (area === 'portale') { area = 'gioco'; aggiornaArea(); }
-  ['portale','home','corse','classifica','scontri','tsoci','sfide','regsg','ferri','premi','soci','mercato','allevamenti','regole','admin'].forEach(x => $('pg-'+x).classList.toggle('hidden', x!==p));
-  ({portale:renderPortale, home:renderHome, corse:renderCorse, classifica:renderClassifica, scontri:renderScontri, tsoci:renderTorneiSoci, sfide:renderSfide, regsg:renderRegoleSG, ferri:renderFerri, premi:renderPremi, soci:renderSoci, mercato:renderMercato, allevamenti:renderAllevamenti, regole:renderRegole, admin:renderAdmin})[p]();
-  $('compBar').classList.toggle('hidden', area !== 'gioco');
+  ['portale','home','corse','classifica','scontri','tsoci','virtuali','sfide','regsg','ferri','premi','soci','mercato','allevamenti','regole','admin'].forEach(x => $('pg-'+x).classList.toggle('hidden', x!==p));
+  ({portale:renderPortale, home:renderHome, corse:renderCorse, classifica:renderClassifica, scontri:renderScontri, tsoci:renderTorneiSoci, virtuali:renderVirtuali, sfide:renderSfide, regsg:renderRegoleSG, ferri:renderFerri, premi:renderPremi, soci:renderSoci, mercato:renderMercato, allevamenti:renderAllevamenti, regole:renderRegole, admin:renderAdmin})[p]();
+  $('compBar').classList.toggle('hidden', area !== 'gioco' || paginaAttuale === 'virtuali');
   scrollTo(0,0);
 }
 function aggiornaArea(){
@@ -687,10 +701,10 @@ function aggiornaArea(){
   document.body.classList.toggle('area-mercato', area === 'mercato');
   document.body.classList.toggle('area-sitgo', area === 'sitgo');
   document.querySelectorAll('#areaSw button').forEach(b => b.classList.toggle('on', b.dataset.a === area));
-  $('compBar').classList.toggle('hidden', area !== 'gioco');
+  $('compBar').classList.toggle('hidden', area !== 'gioco' || paginaAttuale === 'virtuali');
 }
 const MENU = {
-  gioco: [['home','🏠','Home FantaTrotto'],['corse','🏇','Corse'],['classifica','🏆','Classifica'],['scontri','⚔️','Scontri diretti'],['tsoci','🔒','Tornei Soci'],['ferri','🧲','I miei Ferri d\'Oro'],['premi','🎁','Vetrina premi'],['soci','🏅','Area Soci'],['regole','📜','Regolamento']],
+  gioco: [['home','🏠','Home FantaTrotto'],['corse','🏇','Corse'],['classifica','🏆','Classifica'],['scontri','⚔️','Scontri diretti'],['tsoci','🔒','Tornei Soci'],['virtuali','🎰','Corse virtuali'],['ferri','🧲','I miei Ferri d\'Oro'],['premi','🎁','Vetrina premi'],['soci','🏅','Area Soci'],['regole','📜','Regolamento']],
   sitgo: [['sfide','⚡','Lobby Sit & Go'],['sfide_soci','🔒','Sit & Go Soci'],['ferri','🧲','I miei Ferri d\'Oro'],['premi','🎁','Vetrina premi'],['regsg','📜','Come funziona']],
   mercato: [['mercato','🐴','Cavalli in vendita'],['allevamenti','🏡','Allevamenti']]
 };
@@ -989,6 +1003,102 @@ function bottoniContatto(x, testo){
   if (x.indirizzo) b.push(`<a class="alt" href="https://maps.google.com/?q=${encodeURIComponent(x.indirizzo)}" target="_blank" rel="noopener">📍 Indirizzo</a>`);
   return b.length ? `<div class="contatti">${b.join('')}</div>` : '<p class="muted" style="margin-top:10px">Nessun contatto inserito.</p>';
 }
+// ---------- CORSE VIRTUALI ----------
+const VT_COL = ['#d62828','#1d4e89','#2a9d8f','#e9a700','#6a4c93','#111','#e76f51','#2b9348'];
+let vtCorse = [], vtPunt = [], vtTimer = null, vtSel = null, vtTipo = 'vincente', vtImp = 10, vtAnim = null;
+const VT_DUR = 20;
+function vtRng(seed){ let x = seed % 2147483647; if (x <= 0) x += 2147483646; return () => (x = x * 16807 % 2147483647) / 2147483647; }
+const fmtKm = d => d ? `1'${String(Math.floor(d / 10) - 60).padStart(2,'0')}"${d % 10}` : '';
+async function caricaVirtuali(){
+  const da = new Date(Date.now() - 30 * 60000).toISOString();
+  const [c, b] = await Promise.all([ sb.from('virt_corse').select('*').gte('partenza', da).order('partenza'), sb.from('virt_puntate').select('*').eq('user_id', me.id).order('created_at', { ascending:false }).limit(40) ]);
+  vtCorse = c.data || []; vtPunt = b.data || [];
+}
+async function renderVirtuali(){
+  const pg = $('pg-virtuali');
+  if (imp.virt_attivo === false) { pg.innerHTML = '<div class="card muted">Le corse virtuali al momento sono spente.</div>'; return; }
+  if (!vtCorse.length) pg.innerHTML = '<div class="card muted">Caricamento corse virtuali…</div>';
+  await caricaVirtuali();
+  if (!vtCorse.length) { try { await sb.rpc('tick_virtuali_pubblico'); } catch(e) {} await caricaVirtuali(); }
+  disegnaVirtuali();
+  clearInterval(vtTimer); let tk = 0;
+  vtTimer = setInterval(() => {
+    if ($('pg-virtuali').classList.contains('hidden')) { clearInterval(vtTimer); return; }
+    const r = vtInCorsa(); if (r?.arrivo) animaVirtuale(r);
+    if (++tk % 10 === 0) aggiornaVirtuali();
+  }, 100);
+}
+const vtProssima = () => vtCorse.find(c => new Date(c.partenza) > new Date());
+const vtInCorsa = () => vtCorse.find(c => { const t = (Date.now() - new Date(c.partenza)) / 1000; return t >= 0 && t < VT_DUR + 6; });
+let vtUltimoStato = '';
+async function aggiornaVirtuali(){
+  const p = vtProssima(), r = vtInCorsa();
+  const cd = $('vtCd'); if (cd && p) { const s = Math.max(0, Math.round((new Date(p.partenza) - Date.now()) / 1000)); cd.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2,'0')}`; if (s <= 5) cd.style.color = 'var(--rosso)'; }
+  const stato = (p?.id || '') + '|' + (r?.id || '') + '|' + (r?.arrivo ? 1 : 0);
+  if (r && !r.arrivo) { try { await sb.rpc('risultato_virtuale', { cid: r.id }); } catch(e) {} await caricaVirtuali(); }
+  if (!p) { try { await sb.rpc('tick_virtuali_pubblico'); } catch(e) {} await caricaVirtuali(); }
+  if (stato !== vtUltimoStato) { vtUltimoStato = stato; disegnaVirtuali(); }
+}
+function vtPercorsi(c){
+  const rnd = vtRng(c.id * 7919 + 13), n = c.cavalli.length, T = {};
+  let t = VT_DUR - 2; c.arrivo.forEach((num, i) => { T[num] = t; t += 0.25 + rnd() * 0.5; });
+  const w = {}; c.cavalli.forEach(h => w[h.n] = [rnd() * 6 + 2, rnd() * 6, rnd() * 0.06 + 0.02]);
+  return (num, tt) => { if (tt >= T[num]) return 1; const b = tt / T[num]; const [a, ph, am] = w[num]; return Math.max(0, Math.min(0.995, b + am * Math.sin(a * b + ph) * b * (1 - b) * 4)); };
+}
+function animaVirtuale(c){
+  const tt = (Date.now() - new Date(c.partenza)) / 1000;
+  const el = $('vtPista'); if (!el || el.dataset.id != c.id) return;
+  const f = vtPercorsi(c);
+  const pos = c.cavalli.map(h => [h.n, f(h.n, tt)]);
+  pos.forEach(([num, v]) => { const hh = $('vth' + num); if (hh) hh.style.left = `calc(${v * 100}% - ${v * 60}px)`; });
+  const ord = [...pos].sort((a,b) => b[1] - a[1]).map(x => x[0]);
+  const fin = tt >= VT_DUR + 1;
+  $('vtOrd').innerHTML = fin ? `🏁 Arrivo: <b>${c.arrivo.slice(0,3).map((n,i) => ['🥇','🥈','🥉'][i] + ' ' + n).join(' · ')}</b> · ${fmtKm(c.tempo)}` : `In testa: <b>${ord.slice(0,3).join(' - ')}</b>`;
+}
+function disegnaVirtuali(){
+  const pg = $('pg-virtuali'); const p = vtProssima(), r = vtInCorsa(), mx = imp.virt_max ?? 50;
+  const saldo = `<div onclick="go('ferri')" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;background:#111;color:#f5d77e;padding:6px 12px;border-radius:20px;font-size:14px">${ferro(20)} <b>${mioSaldo.toLocaleString('it-IT')}</b> Ferri Free</div>`;
+  const pista = r && r.arrivo ? `<div class="card" style="padding:12px"><h3 style="font-size:20px;color:var(--verde);margin-bottom:6px">🔴 In corsa · Virtuale #${r.id % 10000}</h3>
+    <div class="vt-pista ${/iPhone|iPad|Macintosh/.test(navigator.userAgent) ? 'vt-flip' : ''}" id="vtPista" data-id="${r.id}"><div class="vt-fin"></div>${r.cavalli.map(h => `<div class="vt-lane"><div class="vt-h" id="vth${h.n}" style="left:0"><b style="background:${VT_COL[(h.n-1)%8]};color:#fff">${h.n}</b>🏇</div></div>`).join('')}</div>
+    <div id="vtOrd" style="margin-top:8px;font-size:14px"></div>${mieSu(r)}</div>` : '';
+  const ultime = vtCorse.filter(c => c.arrivo && (!r || c.id !== r.id)).slice(-6).reverse();
+  pg.innerHTML = `<div style="text-align:right;margin-bottom:8px">${saldo}</div>
+    <h2 style="color:var(--verde);font-size:28px;margin-bottom:2px">🎰 Corse virtuali</h2>
+    <p class="muted" style="font-size:13px;margin-bottom:10px">Una corsa simulata ogni ${imp.virt_minuti ?? 3} minuti. Punta i tuoi <b>Ferri Free</b> su un cavallo: <b>Vincente</b> (deve arrivare 1°) o <b>Piazzato</b> (nei primi 3). Se indovini prendi puntata × quota. Solo per divertimento: niente premi.</p>
+    ${pista}
+    ${p ? `<div class="card" style="padding:12px"><div style="display:flex;align-items:center;justify-content:space-between"><h3 style="font-size:20px;color:var(--verde)">Prossima · Virtuale #${p.id % 10000}</h3><div style="text-align:right"><div class="muted" style="font-size:11px">PARTE TRA</div><div id="vtCd" style="font-family:'Bebas Neue';font-size:28px;color:var(--verde)">–</div></div></div>
+      <div style="display:flex;gap:6px;font-size:11px;color:#888;justify-content:flex-end;padding:0 6px"><span style="min-width:52px;text-align:center">VINCENTE</span><span style="min-width:52px;text-align:center">PIAZZATO</span></div>
+      ${p.cavalli.map(h => `<div class="vt-cav ${vtSel === h.n ? 'sel' : ''}"><div class="vt-num" style="background:${VT_COL[(h.n-1)%8]}">${h.n}</div><div style="flex:1;min-width:0" onclick="vtSel=${h.n};disegnaVirtuali()"><b>${esc(h.nome)}</b><div class="muted" style="font-size:12px">${esc(h.driver)}</div></div>
+        <div class="vt-q" style="${vtSel === h.n && vtTipo === 'vincente' ? 'background:var(--oro)' : ''}" onclick="vtSel=${h.n};vtTipo='vincente';disegnaVirtuali()">${h.qv.toFixed(1)}</div><div class="vt-q" style="${vtSel === h.n && vtTipo === 'piazzato' ? 'background:var(--oro)' : ''}" onclick="vtSel=${h.n};vtTipo='piazzato';disegnaVirtuali()">${h.qp.toFixed(2)}</div></div>`).join('')}
+      ${vtSel ? (h => `<div style="background:#111;color:#fff;border-radius:12px;padding:12px;margin-top:10px"><div><b style="color:#f5d77e">${vtTipo === 'vincente' ? 'Vincente' : 'Piazzato'}</b> sul <b>${h.n} ${esc(h.nome)}</b> · quota ${vtTipo === 'vincente' ? h.qv.toFixed(1) : h.qp.toFixed(2)}</div>
+        <div style="display:flex;gap:6px;margin:8px 0">${[5,10,25,50].filter(x => x <= mx).map(x => `<button onclick="vtImp=${x};disegnaVirtuali()" style="flex:1;padding:8px;border-radius:8px;font-weight:800;border:2px solid #f5d77e;background:${vtImp===x?'#f5d77e':'transparent'};color:${vtImp===x?'#111':'#f5d77e'}">${x}</button>`).join('')}</div>
+        <button class="btn-oro full" onclick="puntaVirtuale(${p.id})">Punta ${vtImp} Ferri → vinci ${Math.floor(vtImp * (vtTipo === 'vincente' ? h.qv : h.qp))}</button></div>`)(p.cavalli.find(x => x.n === vtSel)) : '<p class="muted" style="font-size:13px;margin-top:8px;text-align:center">Tocca una quota per puntare</p>'}
+      ${mieSu(p)}</div>` : '<div class="card muted">Sto preparando la prossima corsa…</div>'}
+    ${ultime.length ? `<div class="card"><h3 style="font-size:20px;color:var(--verde)">🏁 Ultimi arrivi</h3>${ultime.map(c => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:7px 0;font-size:14px"><span class="muted">#${c.id % 10000} · ${fmtOra(c.partenza)}</span><span>${c.arrivo.slice(0,3).map((n,i) => `<b style="display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:5px;color:#fff;background:${VT_COL[(n-1)%8]}">${n}</b>`).join(' ')}</span></div>`).join('')}</div>` : ''}
+    ${vtPunt.filter(b => b.vinto != null).length ? `<div class="card"><h3 style="font-size:20px;color:var(--verde)">📒 Le mie ultime puntate</h3>${vtPunt.filter(b => b.vinto != null).slice(0, 10).map(b => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:7px 0;font-size:14px"><span>#${b.corsa_id % 10000} · ${b.tipo} sul ${b.cavallo} · ${b.importo}</span><b style="color:${b.vinto ? '#1d7a4f' : 'var(--rosso)'}">${b.vinto ? '+' + b.vinto : 'persa'}</b></div>`).join('')}</div>` : ''}`;
+  aggiornaVirtuali();
+}
+function mieSu(c){
+  const m = vtPunt.filter(b => b.corsa_id === c.id); if (!m.length) return '';
+  return `<div style="margin-top:8px;font-size:13px">🎫 Le tue puntate: ${m.map(b => `${b.tipo === 'vincente' ? 'V' : 'P'} ${b.cavallo} (${b.importo})${b.vinto != null ? (b.vinto ? ` <b style="color:#1d7a4f">+${b.vinto}</b>` : ' <span style="color:var(--rosso)">persa</span>') : ''}`).join(' · ')}</div>`;
+}
+async function puntaVirtuale(cid){
+  const { error } = await sb.rpc('punta_virtuale', { cid, cav: vtSel, tipo: vtTipo, importo: vtImp });
+  if (error) return alert(error.message.replace(/^.*?:\s*/, ''));
+  mioSaldo -= vtImp; vtSel = null; await caricaVirtuali(); disegnaVirtuali();
+}
+function adminVirtuali(){
+  return `<div class="card"><h3 style="font-size:22px">🎰 Corse virtuali</h3>
+    <p class="muted" style="font-size:13px">Corse simulate automatiche: si punta solo con i Ferri Free, senza premi.</p>
+    <div class="row"><div><label>Una corsa ogni (minuti)</label><input type="number" id="vtMin" min="1" max="60" value="${imp.virt_minuti ?? 3}"></div><div><label>Puntata massima per corsa</label><input type="number" id="vtMax" min="1" value="${imp.virt_max ?? 50}"></div></div>
+    <label style="font-size:14px"><input type="checkbox" id="vtAtt" style="width:auto" ${imp.virt_attivo === false ? '' : 'checked'}> Corse virtuali attive</label>
+    <div id="vtMsg"></div><button class="btn full" onclick="salvaVirtuali()">Salva</button></div>`;
+}
+async function salvaVirtuali(){
+  const { error } = await sb.from('impostazioni').upsert({ id: 1, virt_minuti: Math.min(60, Math.max(1, parseInt($('vtMin').value, 10) || 3)), virt_max: Math.max(1, parseInt($('vtMax').value, 10) || 50), virt_attivo: $('vtAtt').checked });
+  if (error) return msg('vtMsg', error.message); await carica(); renderAdmin(); setTimeout(() => msg('vtMsg', 'Salvato ✅', 'ok'), 50);
+}
+
 // ---------- PACCO GIORNALIERO ----------
 async function controllaPacco(){
   try { const { data } = await sb.rpc('pacco_giornaliero_disponibile'); if (data === true) mostraPacchi(); } catch(e) {}
@@ -1868,6 +1978,7 @@ function _renderAdmin(){
   setTimeout(caricaAdminFerri, 0); if (!Object.keys(saldiSociCache).length) setTimeout(caricaSaldiSoci, 0);
   $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Admin</h2>${tabs}
   ${adminComp()}
+  ${adminVirtuali()}
   ${adminUtenti()}
   ${adminFerri()}
   ${adminSponsor()}
