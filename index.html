@@ -14,6 +14,8 @@
 body{font-family:Inter,system-ui,sans-serif;background:var(--crema);color:var(--testo);min-height:100vh;padding-bottom:80px}
 header .area-sw{max-width:720px;margin:10px auto 0;display:flex;background:rgba(0,0,0,.25);border-radius:12px;padding:4px;gap:4px}
 header .area-sw button{flex:1;background:transparent;color:rgba(255,255,255,.75);padding:10px 2px;font-size:11px;letter-spacing:.3px;border-radius:9px;white-space:nowrap}
+header .area-sw button i{font-style:normal}
+@media (max-width:440px){header .area-sw{gap:3px;padding:3px}header .area-sw button{font-size:9.5px;letter-spacing:0;padding:5px 1px;line-height:1.25}header .area-sw button i{display:block;font-size:17px;margin-bottom:1px}}
 header .area-sw button.on{background:var(--oro);color:#111;box-shadow:0 2px 6px rgba(0,0,0,.3)}
 body.area-mercato header{background:linear-gradient(135deg,#2b1a0b,#4a2f14)}
 body.area-mercato{--verde:#5a3a17}
@@ -181,6 +183,12 @@ header .in{max-width:720px;margin:0 auto;display:flex;justify-content:space-betw
 header h1{font-size:30px}
 .online-list{background:#fff;color:var(--testo);border-radius:12px;padding:10px 14px;box-shadow:0 4px 14px rgba(0,0,0,.2)}.online-list div{padding:6px 0;border-bottom:1px solid #eee;font-size:14px}.online-list div:last-child{border:0}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#22c55e;margin-right:8px}header h1 span{color:var(--oro)}
 .user-chip{font-size:13px;background:rgba(255,255,255,.12);padding:6px 10px;border-radius:20px}
+#chip{line-height:1.35;text-align:left}
+.chip-ferri{display:inline-flex;align-items:center;gap:3px;background:rgba(0,0,0,.35);border:1px solid rgba(245,215,126,.6);color:#f5d77e;border-radius:12px;padding:1px 7px;font-weight:800;cursor:pointer;font-size:12px}
+#tendFerri{position:fixed;z-index:3000;background:#0d1f16;color:#fff;border:2px solid #f5d77e;border-radius:14px;padding:10px;width:250px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+#tendFerri .r{display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,.12)}
+#tendFerri .r b{font-size:18px;color:#f5d77e;margin-left:auto}
+#tendFerri small{display:block;font-size:11px;opacity:.7}
 /* NAV */
 nav{display:none!important;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;display:flex;justify-content:space-around;padding:6px 0 calc(6px + env(safe-area-inset-bottom));z-index:6}
 nav button{background:none;color:var(--grigio);display:flex;flex-direction:column;align-items:center;font-size:10px;padding:6px 4px}
@@ -247,7 +255,7 @@ td.n{text-align:right;font-weight:700}tr.me{background:#fff8e6}
 <!-- ================= APP ================= -->
 <section id="app" class="hidden">
   <header><div class="in"><div class="brand" onclick="chiudiTendina();go('portale')" style="cursor:pointer"><img src="" class="logoIcona" alt="FantaTrotto"><h1>FANTA<span>TROTTO</span></h1></div><div style="display:flex;gap:6px;align-items:center"><button class="user-chip" id="onlineBtn" onclick="toggleOnline()" style="border:0;color:#fff;cursor:pointer">🟢 …</button><span class="user-chip" id="chip"></span></div></div>
-  <div class="area-sw" id="areaSw"><button data-a="gioco" onclick="apriTendina('gioco')">🏆 FANTATROTTO ▾</button><button data-a="sitgo" onclick="apriTendina('sitgo')">⚡ SIT &amp; GO ▾</button><button data-a="mercato" onclick="apriTendina('mercato')">🐴 MERCATO ▾</button><button data-a="virt" onclick="chiudiTendina();setArea('virt')">🏁 VIRTUALI</button></div>
+  <div class="area-sw" id="areaSw"><button data-a="gioco" onclick="apriTendina('gioco')"><i>🏆</i> FANTATROTTO ▾</button><button data-a="sitgo" onclick="apriTendina('sitgo')"><i>⚡</i> SIT &amp; GO ▾</button><button data-a="mercato" onclick="apriTendina('mercato')"><i>🐴</i> MERCATO ▾</button><button data-a="virt" onclick="chiudiTendina();setArea('virt')"><i>🏁</i> VIRTUALI</button></div>
   <div id="menuTendina" class="hidden"></div>
   <div id="onlinePanel" class="hidden" style="max-width:720px;margin:8px auto 0"></div></header>
   <main class="wrap">
@@ -687,7 +695,7 @@ async function avvia(){
   $('auth').classList.add('hidden'); $('app').classList.remove('hidden');
   let { data: p } = await sb.from('profiles').select('*').eq('id', me.id).single();
   profilo = p || { username: me.email, is_admin: false };
-  $('chip').innerHTML = `👤 ${esc(profilo.username)} · <a href="#" onclick="logout()" style="color:var(--oro)">esci</a>`;
+  disegnaChip(); setInterval(aggiornaChip, 1500);
   $('adminBtn').classList.toggle('hidden', !profilo.is_admin); document.body.classList.toggle('is-admin', !!profilo.is_admin);
   avviaPresenza(); mostraSponsor(); avviaChat();
   try { await sb.rpc('riscuoti_benvenuto'); } catch(e){}
@@ -1043,6 +1051,28 @@ function bottoniContatto(x, testo){
   if (x.indirizzo) b.push(`<a class="alt" href="https://maps.google.com/?q=${encodeURIComponent(x.indirizzo)}" target="_blank" rel="noopener">📍 Indirizzo</a>`);
   return b.length ? `<div class="contatti">${b.join('')}</div>` : '<p class="muted" style="margin-top:10px">Nessun contatto inserito.</p>';
 }
+// ---------- MONETE NELL'INTESTAZIONE ----------
+let chipVal = '';
+function disegnaChip(){
+  chipVal = [mioSaldo, mioSaldoSoci, mioSaldoVinti].join('|');
+  $('chip').innerHTML = `👤 ${esc(profilo.username)}<br><span class="chip-ferri" onclick="event.stopPropagation();apriTendFerri(this)">${ferro(13)} ${(mioSaldo || 0).toLocaleString('it-IT')} ▾</span> · <a href="#" onclick="logout()" style="color:var(--oro)">esci</a>`;
+}
+function aggiornaChip(){ if ([mioSaldo, mioSaldoSoci, mioSaldoVinti].join('|') !== chipVal) disegnaChip(); }
+async function apriTendFerri(el){
+  let t = $('tendFerri'); if (t) { t.remove(); return; }
+  try { const [a, b, c] = await Promise.all([sb.rpc('saldo_ferri'), sb.rpc('saldo_soci'), sb.rpc('saldo_vinti')]); mioSaldo = a.data ?? mioSaldo; mioSaldoSoci = b.data ?? mioSaldoSoci; mioSaldoVinti = c.data ?? mioSaldoVinti; } catch(e) {}
+  t = document.createElement('div'); t.id = 'tendFerri';
+  const r = el.getBoundingClientRect(); t.style.top = (r.bottom + 8) + 'px'; t.style.right = Math.max(8, innerWidth - r.right - 10) + 'px';
+  const riga = (ico, nome, v, d) => `<div class="r"><span style="font-size:20px">${ico}</span><div>${nome}<small>${d}</small></div><b>${(v || 0).toLocaleString('it-IT')}</b></div>`;
+  t.innerHTML = `<div style="font-family:'Bebas Neue';font-size:20px;color:#f5d77e;letter-spacing:1px;margin-bottom:2px">I tuoi Ferri d'Oro</div>
+    ${riga(ferro(20), 'Ferri Free', mioSaldo, 'Per giocare: competizioni free, Sit & Go, virtuali')}
+    ${riga('🔒', 'Ferri Soci', mioSaldoSoci, 'Dati dagli admin, per gli ingressi Soci')}
+    ${riga('🏆', 'Ferri Premio', mioSaldoVinti, 'Vinti nei giochi Soci, per i premi')}
+    <button class="btn-oro full" style="margin-top:10px" onclick="$('tendFerri').remove();go('ferri')">Vedi tutti i movimenti</button>`;
+  document.body.appendChild(t);
+}
+document.addEventListener('click', e => { const t = $('tendFerri'); if (t && !e.target.closest('#tendFerri')) t.remove(); });
+
 // ---------- CORSE VIRTUALI (TROTTO) ----------
 const VT_COL = ['#d62828','#1d4e89','#2a9d8f','#e9a700','#6a4c93','#222','#e76f51','#2b9348'];
 const VT_MANTI = [['#7a4320','#4a2510'],['#a0522d','#6b3318'],['#2b2420','#120d0b'],['#9a9a9a','#666'],['#5a3218','#33190a'],['#8b5a2b','#55331a']];
@@ -1053,7 +1083,7 @@ const VT_TIPI = {
   acc_pia:['Accoppiata piazzata',2,false,'Tutti e 2 nei primi 3'], trio:['Trio',3,true,'1°, 2° e 3° nell\'ordine esatto'],
   trio_dis:['Trio in disordine',3,false,'I primi 3, in qualsiasi ordine'], quarte:['Quartè',4,true,'I primi 4 nell\'ordine esatto'],
   quinte:['Quintè',5,true,'I primi 5 nell\'ordine esatto'] };
-let vtCorse = [], vtPunt = [], vtTimer = null, vtSel = [], vtTipo = 'vincente', vtImp = 10, vtOff = 0, vtUltimoStato = '', vtRivelate = new Set();
+let vtCorse = [], vtPunt = [], vtTutte = [], vtTimer = null, vtSel = [], vtTipo = 'vincente', vtImp = 10, vtOff = 0, vtUltimoStato = '', vtRivelate = new Set();
 let vtVoce = false; try { vtVoce = localStorage.getItem('ft_vt_voce') === '1'; } catch(e) {}
 const vtNow = () => Date.now() + vtOff;
 const vtT = c => (vtNow() - new Date(c.partenza)) / 1000;
@@ -1106,6 +1136,8 @@ async function caricaVirtuali(){
   const da = new Date(vtNow() - 30 * 60000).toISOString();
   const [c, b] = await Promise.all([ sb.from('virt_corse').select('*').gte('partenza', da).order('partenza'), sb.from('virt_puntate').select('*').eq('user_id', me.id).order('created_at', { ascending:false }).limit(40) ]);
   vtCorse = c.data || []; vtPunt = b.data || [];
+  const ids = vtCorse.filter(x => vtT(x) > -900 && vtT(x) < VT_SHOW + 5).map(x => x.id);
+  if (ids.length) { const { data } = await sb.from('virt_puntate').select('*').in('corsa_id', ids).order('created_at'); vtTutte = data || []; } else vtTutte = [];
 }
 async function renderVirtuali(){
   const pg = $('pg-virtuali');
@@ -1209,7 +1241,7 @@ function disegnaVirtuali(){
         ${[...sc.cavalli].sort((a,b) => a.n - b.n).map(h => `<div class="vt-lane"><div class="vt-gate" style="background:${VT_COL[(h.n-1)%8]}">${h.n}</div><div class="vt-h" id="vth${h.n}">${vtSulky(sc, h)}</div></div>`).join('')}
       </div><div class="vt-bottom"></div></div>
     <div class="vt-crono">🎙️ <span id="vtCronoT">${esc(vtUltimaFrase || 'La telecronaca parte con la corsa.')}</span><button id="vtVoceBtn" onclick="vtToggleVoce()">${vtVoce ? '🔊 Voce' : '🔇 Voce'}</button></div>
-    ${r ? mieSu(r) : ''}` : '<div class="card muted">Sto preparando la prossima corsa…</div>';
+    ${r ? mieSu(r) + tutteSu(r) : ''}` : '<div class="card muted">Sto preparando la prossima corsa…</div>';
   const quota = p && vtSel.length === T[1] ? vtQuota(p, vtTipo, vtSel) : null;
   const rows = p ? [...p.cavalli].sort((a,b) => a.n - b.n).map(h => {
     const i = vtSel.indexOf(h.n), on = i >= 0;
@@ -1233,12 +1265,18 @@ function disegnaVirtuali(){
     ${p ? `<div class="card" style="padding:12px;margin-top:12px"><h3 style="font-size:20px;color:var(--verde);margin-bottom:8px">🎟️ Gioca la corsa #${p.id % 10000}</h3>
       <div class="vt-tipi">${Object.entries(VT_TIPI).map(([k, v]) => `<button class="${k === vtTipo ? 'on' : ''}" onclick="vtTipo='${k}';vtSel=[];disegnaVirtuali()">${v[0]}</button>`).join('')}</div>
       <div class="muted" style="font-size:13px;margin-bottom:4px"><b>${T[0]}:</b> ${T[3]}</div>
-      ${rows}${slip}${mieSu(p)}</div>` : ''}
+      ${rows}${slip}${mieSu(p)}${tutteSu(p)}</div>` : ''}
     ${ultime.length ? `<div class="card"><h3 style="font-size:20px;color:var(--verde)">🏁 Ultimi arrivi</h3>${ultime.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eee;padding:7px 0;font-size:14px"><span class="muted">#${c.id % 10000} · ${fmtOra(c.partenza)} · ${fmtKm(c.tempo)}</span><span>${c.arrivo.slice(0,3).map(n => `<b style="display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:5px;color:#fff;background:${VT_COL[(n-1)%8]}">${n}</b>`).join(' ')}</span></div>`).join('')}</div>` : ''}
     ${mie.length ? `<div class="card"><h3 style="font-size:20px;color:var(--verde)">📒 Le mie ultime giocate</h3>${mie.slice(0, 10).map(b => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:7px 0;font-size:14px;gap:8px"><span>#${b.corsa_id % 10000} · ${(VT_TIPI[b.tipo] || ['?'])[0]} ${(b.sel || [b.cavallo]).join(VT_TIPI[b.tipo]?.[2] ? '→' : '·')} · ${b.importo} a ${fmtQ(b.quota)}</span><b style="color:${b.vinto ? '#1d7a4f' : 'var(--rosso)'};white-space:nowrap">${b.vinto ? '+' + b.vinto : 'persa'}</b></div>`).join('')}</div>` : ''}
     <p class="muted" style="font-size:12px;text-align:center;margin:6px 0 14px">Gioco a puro scopo di divertimento con i Ferri Free: non si comprano e non si convertono in denaro o premi.</p>`;
   const tb = pg.querySelector('.vt-tipi'), on = tb && tb.querySelector('.on'); if (on) tb.scrollLeft = on.offsetLeft - 20;
   animaVirtuale();
+}
+function tutteSu(c){
+  const m = vtTutte.filter(b => b.corsa_id === c.id); if (!m.length) return '';
+  const vedi = vtFinita(c), tot = m.reduce((a, b) => a + b.importo, 0);
+  return `<details style="margin-top:10px;border-top:1px solid #eee;padding-top:8px" ${m.length <= 6 ? 'open' : ''}><summary style="cursor:pointer;font-weight:800;color:var(--verde)">👥 Chi ha giocato · ${m.length} giocate · ${tot} Ferri</summary>
+    ${m.map(b => `<div style="display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid #f0f0f0;padding:6px 0;font-size:13px${b.user_id === me.id ? ';background:#fff6dc' : ''}"><span><b>${esc(utenti[b.user_id] || '?')}</b> · ${(VT_TIPI[b.tipo] || ['?'])[0]} ${(b.sel || [b.cavallo]).join(VT_TIPI[b.tipo]?.[2] ? '→' : '·')}</span><span style="white-space:nowrap">${b.importo} a ${fmtQ(b.quota)}${vedi && b.vinto != null ? (b.vinto ? ` <b style="color:#1d7a4f">+${b.vinto}</b>` : ' <span style="color:var(--rosso)">✗</span>') : ''}</span></div>`).join('')}</details>`;
 }
 function vtScegli(n){
   const k = VT_TIPI[vtTipo][1];
