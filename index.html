@@ -149,16 +149,23 @@ td.n{text-align:right;font-weight:700}tr.me{background:#fff8e6}
     <div id="iscrInfo"></div>
     <div id="authMsg"></div>
     <form id="formLogin" onsubmit="login(event)">
-      <label>Email</label><input type="email" id="lEmail" required autocomplete="email">
+      <label>Numero di cellulare <span class="muted">(o email, se ti eri registrato con l'email)</span></label><input id="lEmail" required autocomplete="username" inputmode="tel" placeholder="es. 333 1234567">
       <label>Password</label><input type="password" id="lPass" required autocomplete="current-password">
       <button class="btn full" type="submit">Entra</button>
       <p style="text-align:center;margin-top:12px"><a href="#" onclick="resetPass(event)" class="muted">Password dimenticata?</a></p>
     </form>
     <form id="formReg" class="hidden" onsubmit="register(event)">
       <label>Nome utente</label><input id="rUser" required minlength="3" maxlength="20" placeholder="es. Varenne93">
-      <label>Email</label><input type="email" id="rEmail" required autocomplete="email">
+      <label>Numero di cellulare</label><div style="display:flex;gap:6px;align-items:center"><span style="padding:12px 10px;background:#eee;border-radius:10px;font-weight:700;white-space:nowrap;flex:0 0 auto">🇮🇹 +39</span><input id="rTel" required inputmode="tel" autocomplete="tel-national" placeholder="333 1234567" style="margin:0"></div>
+      <p class="muted" style="font-size:12px;margin-top:4px">Lo userai per entrare. Un numero = un account.</p>
       <label>Password (min 6 caratteri)</label><input type="password" id="rPass" required minlength="6" autocomplete="new-password">
       <button class="btn-oro full" type="submit">Crea account</button>
+    </form>
+    <form id="formOtp" class="hidden" onsubmit="confermaOtp(event)">
+      <p id="otpTesto" style="text-align:center;margin-bottom:8px"></p>
+      <label>Codice ricevuto via SMS</label><input id="otpCod" required inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" style="font-size:24px;letter-spacing:6px;text-align:center">
+      <button class="btn-oro full" type="submit">Conferma</button>
+      <p style="text-align:center;margin-top:12px"><a href="#" onclick="rimandaOtp(event)" class="muted">Non è arrivato? Rimanda il codice</a> · <a href="#" onclick="setTab('login');return false" class="muted">Indietro</a></p>
     </form>
   </div>
 </section>
@@ -259,28 +266,65 @@ function msg(el, testo, tipo='err'){ const t = $v(el); if (!t) return; t.innerHT
 // ---------- AUTH ----------
 function setTab(t){
   $('tabLogin').classList.toggle('on', t==='login'); $('tabReg').classList.toggle('on', t==='reg');
-  $('formLogin').classList.toggle('hidden', t!=='login'); $('formReg').classList.toggle('hidden', t!=='reg'); msg('authMsg','');
+  $('formLogin').classList.toggle('hidden', t!=='login'); $('formReg').classList.toggle('hidden', t!=='reg'); $('formOtp').classList.toggle('hidden', t!=='otp'); msg('authMsg','');
+}
+const emailTel = tel => tel.replace('+', '') + '@tel.fantatrotto.it';
+function normTel(v){
+  let t = String(v || '').replace(/[\s\-\.\/()]/g, '');
+  if (t.startsWith('00')) t = '+' + t.slice(2);
+  if (!t.startsWith('+')) t = '+39' + t.replace(/^0+(?=3)/, '');
+  return /^\+\d{8,15}$/.test(t) ? t : null;
+}
+let otpTel = null, otpModo = 'reg';
+function mostraOtp(tel, modo){
+  otpTel = tel; otpModo = modo; setTab('otp');
+  $('otpTesto').innerHTML = `📱 Ti abbiamo mandato un SMS al <b>${esc(tel)}</b> con un codice di 6 cifre.`;
+  $('otpCod').value = ''; setTimeout(() => $('otpCod').focus(), 100);
 }
 async function login(e){
   e.preventDefault(); msg('authMsg','');
-  const { error } = await sb.auth.signInWithPassword({ email: $('lEmail').value.trim(), password: $('lPass').value });
-  if (error) msg('authMsg', error.message.includes('Invalid') ? 'Email o password errati' : error.message.includes('confirm') ? 'Conferma prima la tua email (controlla la posta)' : error.message);
+  const id = $('lEmail').value.trim(), password = $('lPass').value;
+  let cred;
+  if (id.includes('@')) cred = { email: id, password };
+  else { const tel = normTel(id); if (!tel) return msg('authMsg', 'Numero di cellulare non valido'); cred = { email: emailTel(tel), password }; }
+  const { error } = await sb.auth.signInWithPassword(cred);
+  if (error) msg('authMsg', error.message.includes('Invalid') ? 'Numero (o email) o password errati' : error.message.includes('confirm') ? 'Account non ancora confermato: completa la verifica del codice SMS' : error.message);
 }
 async function register(e){
   e.preventDefault(); msg('authMsg','');
   const username = $('rUser').value.trim();
+  const tel = normTel($('rTel').value); if (!tel) return msg('authMsg', 'Numero di cellulare non valido');
   const { data: libero } = await sb.rpc('username_libero', { u: username });
   if (libero === false) return msg('authMsg','Nome utente già preso');
-  const { data, error } = await sb.auth.signUp({ email: $('rEmail').value.trim(), password: $('rPass').value, options: { data: { username }, emailRedirectTo: location.origin + location.pathname } });
-  if (error) return msg('authMsg', error.message.includes('registered') ? 'Email già registrata' : error.message);
-  if (!data.session) { setTab('login'); msg('authMsg','Account creato! Controlla la tua email per confermare, poi accedi.','ok'); }
+  const { data, error } = await sb.auth.signUp({ email: emailTel(tel), password: $('rPass').value, options: { data: { username, telefono: tel } } });
+  if (error) return msg('authMsg', /registered|exists/i.test(error.message) ? 'Questo numero è già registrato: accedi con il tuo numero' : error.message);
+  if (!data.session) { setTab('login'); $('lEmail').value = $('rTel').value; msg('authMsg', 'Account creato! Ora accedi con numero e password.', 'ok'); }
+}
+async function confermaOtp(e){
+  e.preventDefault(); msg('authMsg','');
+  const token = $('otpCod').value.trim(); if (!/^\d{4,8}$/.test(token)) return msg('authMsg', 'Scrivi il codice che hai ricevuto');
+  const { error } = await sb.auth.verifyOtp({ phone: otpTel, token, type: 'sms' });
+  if (error) return msg('authMsg', /expired|invalid/i.test(error.message) ? 'Codice sbagliato o scaduto: riprova o fattelo rimandare' : error.message);
+  if (otpModo === 'reset') {
+    const np = prompt('Numero verificato ✅ Scrivi la nuova password (min 6 caratteri):');
+    if (np && np.length >= 6) { const { error: e2 } = await sb.auth.updateUser({ password: np }); alert(e2 ? e2.message : 'Password aggiornata!'); }
+  }
+}
+async function rimandaOtp(e){
+  e.preventDefault(); if (!otpTel) return;
+  const { error } = otpModo === 'reset' ? await sb.auth.signInWithOtp({ phone: otpTel, options: { shouldCreateUser: false } }) : await sb.auth.resend({ type: 'sms', phone: otpTel });
+  msg('authMsg', error ? error.message : 'Codice rimandato 📱', error ? 'err' : 'ok');
 }
 async function resetPass(e){
   e.preventDefault();
-  const email = $('lEmail').value.trim();
-  if (!email) return msg('authMsg','Scrivi prima la tua email nel campo sopra');
-  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
-  msg('authMsg', error ? error.message : 'Ti abbiamo mandato una email per reimpostare la password', error ? 'err' : 'ok');
+  const id = $('lEmail').value.trim();
+  if (!id) return msg('authMsg','Scrivi prima il tuo numero (o la tua email) nel campo sopra');
+  if (id.includes('@')) {
+    const { error } = await sb.auth.resetPasswordForEmail(id, { redirectTo: location.origin + location.pathname });
+    return msg('authMsg', error ? error.message : 'Ti abbiamo mandato una email per reimpostare la password', error ? 'err' : 'ok');
+  }
+  if (!imp.whatsapp_org) { try { const { data } = await sb.from('impostazioni').select('whatsapp_org').eq('id', 1).maybeSingle(); if (data) imp.whatsapp_org = data.whatsapp_org; } catch(e) {} }
+  $v('authMsg').innerHTML = `<div class="msg ok">Per reimpostare la password contatta l'organizzazione: ti daranno una password nuova.${imp.whatsapp_org ? ` <a href="https://wa.me/${numWa(imp.whatsapp_org)}?text=${encodeURIComponent('Ciao, ho dimenticato la password di FantaTrotto. Il mio numero è ' + id)}" target="_blank" rel="noopener"><b>💬 Scrivi su WhatsApp</b></a>` : ''}</div>`;
 }
 async function logout(){ fermaChat(); if (presenza) { await presenza.untrack(); sb.removeChannel(presenza); presenza = null; } await sb.auth.signOut(); }
 
@@ -1278,7 +1322,7 @@ function adminFerri(){
   <div class="card"><h3 style="font-size:22px">🏅 Soci</h3>
     <p class="muted" style="font-size:13px">Essere Socio è gratuito e su invito: lo attivi tu qui sotto.</p>
     <h4 style="margin-top:14px">🏅 Soci attivi (${Object.keys(utenti).filter(isSocio).length})</h4>
-    ${(ids => ids.length ? ids.map(id => `<div class="row" style="align-items:center;border-bottom:1px solid #eee;padding:7px 0"><div style="flex:3"><b>${esc(utenti[id])}</b> 🏅<div class="muted" style="font-size:12px">fino al ${new Date(soci[id]).toLocaleDateString('it-IT')} · 🔒 ${saldiSociCache[id] ?? '…'} Ferri Soci</div></div><button class="btn-ghost" style="flex:0 0 auto;padding:6px 10px" title="Rinnova di un anno" onclick="rinnovaSocio('${id}')">+1 anno</button><button class="btn-rosso" style="flex:0 0 auto;padding:6px 10px" title="Togli Socio" onclick="togliSocio('${id}')">✖</button></div>`).join('') : '<p class="muted">Nessun Socio attivo.</p>')(Object.keys(utenti).filter(isSocio).sort((a,b) => utenti[a].localeCompare(utenti[b])))}
+    ${(ids => ids.length ? ids.map(id => `<div class="row" style="align-items:center;border-bottom:1px solid #eee;padding:7px 0"><div style="flex:3"><b>${esc(utenti[id])}</b> 🏅<div class="muted" style="font-size:12px">fino al ${new Date(soci[id]).toLocaleDateString('it-IT')} · 🔒 ${saldiSociCache[id] ?? '…'} Ferri Soci${telefoni[id] ? ' · 📱 ' + esc(telefoni[id]) : ''}</div></div><button class="btn-ghost" style="flex:0 0 auto;padding:6px 10px" title="Rinnova di un anno" onclick="rinnovaSocio('${id}')">+1 anno</button><button class="btn-rosso" style="flex:0 0 auto;padding:6px 10px" title="Togli Socio" onclick="togliSocio('${id}')">✖</button></div>`).join('') : '<p class="muted">Nessun Socio attivo.</p>')(Object.keys(utenti).filter(isSocio).sort((a,b) => utenti[a].localeCompare(utenti[b])))}
     ${(ids => ids.length ? `<p class="muted" style="font-size:13px;margin-top:6px">⏳ Scaduti: ${ids.map(id => `${esc(utenti[id])} (${new Date(soci[id]).toLocaleDateString('it-IT')})`).join(', ')}</p>` : '')(Object.keys(utenti).filter(id => soci[id] && !isSocio(id)))}
     <h4 style="margin-top:14px">➕ Attiva un nuovo Socio</h4>
     <select id="sUser"><option value="">Scegli utente…</option>${Object.entries(utenti).filter(([id]) => !isSocio(id)).sort((a,b) => a[1].localeCompare(b[1])).map(([id,n]) => `<option value="${id}">${esc(n)}${soci[id] ? ' (scaduto)' : ''}</option>`).join('')}</select>
@@ -1350,6 +1394,26 @@ async function eliminaPremio(id){ if (!confirm('Eliminare il premio?')) return; 
 async function statoRichiesta(id, stato){ await sb.from('richieste_premi').update({ stato }).eq('id', id); caricaAdminFerri(); }
 async function annullaRichiesta(id){ if (!confirm('Annullare la richiesta e rimborsare i Ferri?')) return; const { error } = await sb.rpc('annulla_richiesta', { rid: id }); if (error) alert(error.message); await carica(); renderAdmin(); }
 async function salvaInfoSoci(){ const { error } = await sb.from('impostazioni').upsert({ id: 1, link_socio: null, prezzo_socio: null, whatsapp_org: $('sWa').value.trim() || null }); if (error) return alert(error.message); await carica(); renderAdmin(); }
+let telefoni = {}, cercaUt = '';
+async function caricaTelefoni(){ const { data } = await sb.from('utenti_telefono').select('*'); const n = {}; (data||[]).forEach(r => n[r.user_id] = r.telefono); const cambia = JSON.stringify(n) !== JSON.stringify(telefoni); telefoni = n; if (cambia && !$('pg-admin').classList.contains('hidden')) renderAdmin(); }
+function adminUtenti(){
+  if (!Object.keys(telefoni).length) setTimeout(caricaTelefoni, 0);
+  const tutti = Object.entries(utenti).sort((a,b) => a[1].localeCompare(b[1]));
+  const f = cercaUt.toLowerCase().replace(/\s/g,'');
+  const lista = tutti.filter(([id,n]) => !f || n.toLowerCase().includes(f) || (telefoni[id] || '').includes(f));
+  return `<div class="card"><h3 style="font-size:22px">👥 Utenti e numeri (${tutti.length})</h3>
+    <input id="cercaUt" placeholder="🔍 Cerca per nome o numero" value="${esc(cercaUt)}" oninput="cercaUt=this.value;clearTimeout(window._cu);window._cu=setTimeout(()=>{renderAdmin();const i=$('cercaUt');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},400)">
+    <div style="max-height:420px;overflow-y:auto">${lista.map(([id,n]) => `<div class="row" style="align-items:center;border-bottom:1px solid #eee;padding:7px 0"><div style="flex:3;min-width:0"><b>${esc(n)}</b>${badgeSocio(id)}<div class="muted" style="font-size:13px">📱 ${telefoni[id] ? `<a href="tel:${telefoni[id]}">${esc(telefoni[id])}</a>` : '<i>registrato con email</i>'}</div></div>
+      ${telefoni[id] ? `<a class="btn-ghost" style="flex:0 0 auto;padding:6px 10px;text-decoration:none" href="https://wa.me/${numWa(telefoni[id])}" target="_blank" rel="noopener">💬</a>` : ''}<button class="btn-ghost" style="flex:0 0 auto;padding:6px 10px" title="Nuova password" onclick="resetPassUtente('${id}')">🔑</button></div>`).join('') || '<p class="muted">Nessun utente trovato.</p>'}</div>
+    <p class="muted" style="font-size:12px;margin-top:6px">I numeri li vedete solo voi admin. 🔑 = dai una password nuova a chi l'ha dimenticata, poi comunicagliela tu.</p></div>`;
+}
+async function resetPassUtente(uid){
+  const np = prompt(`Nuova password per ${utenti[uid]} (min 6 caratteri):`); if (!np) return;
+  if (np.length < 6) return alert('Minimo 6 caratteri');
+  const { error } = await sb.rpc('admin_reset_password', { uid, nuova: np });
+  alert(error ? error.message : `Fatto ✅ Comunica a ${utenti[uid]} la nuova password: ${np}`);
+}
+
 let saldiSociCache = {};
 async function caricaSaldiSoci(){ const { data } = await sb.from('saldi_ferri').select('user_id,saldo_soci'); const n = {}; (data||[]).forEach(r => n[r.user_id] = r.saldo_soci || 0); const cambia = JSON.stringify(n) !== JSON.stringify(saldiSociCache); saldiSociCache = n; if (cambia && $('pg-admin') && !$('pg-admin').classList.contains('hidden')) renderAdmin(); }
 async function rinnovaSocio(uid){
@@ -1730,6 +1794,7 @@ function _renderAdmin(){
   setTimeout(caricaAdminFerri, 0); if (!Object.keys(saldiSociCache).length) setTimeout(caricaSaldiSoci, 0);
   $('pg-admin').innerHTML = `<h2 style="color:var(--verde);font-size:28px;margin-bottom:8px">⚙️ Admin</h2>${tabs}
   ${adminComp()}
+  ${adminUtenti()}
   ${adminFerri()}
   ${adminSponsor()}
   <div class="card"><h3 style="font-size:22px">1. Aggiungi corsa reale</h3>
