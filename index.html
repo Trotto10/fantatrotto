@@ -1404,8 +1404,21 @@ function adminUtenti(){
   return `<div class="card"><h3 style="font-size:22px">👥 Utenti e numeri (${tutti.length})</h3>
     <input id="cercaUt" placeholder="🔍 Cerca per nome o numero" value="${esc(cercaUt)}" oninput="cercaUt=this.value;clearTimeout(window._cu);window._cu=setTimeout(()=>{renderAdmin();const i=$('cercaUt');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},400)">
     <div style="max-height:420px;overflow-y:auto">${lista.map(([id,n]) => `<div class="row" style="align-items:center;border-bottom:1px solid #eee;padding:7px 0"><div style="flex:3;min-width:0"><b>${esc(n)}</b>${badgeSocio(id)}<div class="muted" style="font-size:13px">📱 ${telefoni[id] ? `<a href="tel:${telefoni[id]}">${esc(telefoni[id])}</a>` : '<i>registrato con email</i>'}</div></div>
-      ${telefoni[id] ? `<a class="btn-ghost" style="flex:0 0 auto;padding:6px 10px;text-decoration:none" href="https://wa.me/${numWa(telefoni[id])}" target="_blank" rel="noopener">💬</a>` : ''}<button class="btn-ghost" style="flex:0 0 auto;padding:6px 10px" title="Nuova password" onclick="resetPassUtente('${id}')">🔑</button></div>`).join('') || '<p class="muted">Nessun utente trovato.</p>'}</div>
-    <p class="muted" style="font-size:12px;margin-top:6px">I numeri li vedete solo voi admin. 🔑 = dai una password nuova a chi l'ha dimenticata, poi comunicagliela tu.</p></div>`;
+      ${telefoni[id] ? `<a class="btn-ghost" style="flex:0 0 auto;padding:6px 10px;text-decoration:none" href="https://wa.me/${numWa(telefoni[id])}" target="_blank" rel="noopener">💬</a>` : ''}<button class="btn-ghost" style="flex:0 0 auto;padding:6px 10px" title="Inserisci o cambia numero" onclick="numeroUtente('${id}')">✏️</button><button class="btn-ghost" style="flex:0 0 auto;padding:6px 10px" title="Nuova password" onclick="resetPassUtente('${id}')">🔑</button></div>`).join('') || '<p class="muted">Nessun utente trovato.</p>'}</div>
+    <p class="muted" style="font-size:12px;margin-top:6px">I numeri li vedete solo voi admin. ✏️ = inserisci o cambia il numero (lascia vuoto per toglierlo). 🔑 = dai una password nuova a chi l'ha dimenticata, poi comunicagliela tu.</p></div>`;
+}
+async function numeroUtente(uid){
+  const v = prompt(`Numero di cellulare di ${utenti[uid]}:\n(lascia vuoto per toglierlo)`, telefoni[uid] || ''); if (v === null) return;
+  if (!v.trim()) {
+    if (!telefoni[uid]) return;
+    const { error } = await sb.from('utenti_telefono').delete().eq('user_id', uid); if (error) return alert(error.message);
+  } else {
+    const tel = normTel(v); if (!tel) return alert('Numero non valido');
+    const altro = Object.entries(telefoni).find(([id, t]) => t === tel && id !== uid);
+    if (altro) return alert(`Questo numero è già di ${utenti[altro[0]]}`);
+    const { error } = await sb.from('utenti_telefono').upsert({ user_id: uid, telefono: tel }); if (error) return alert(error.message);
+  }
+  telefoni = {}; await caricaTelefoni(); renderAdmin();
 }
 async function resetPassUtente(uid){
   const np = prompt(`Nuova password per ${utenti[uid]} (min 6 caratteri):`); if (!np) return;
