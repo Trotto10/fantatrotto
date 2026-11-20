@@ -787,9 +787,9 @@ function renderPortale(){
       <p>Cavalli in vendita da allevamenti e proprietà: guarda foto e video e contatta direttamente la proprietà.</p>
       <div class="st"><span>🐴 ${inVendita} cavalli in vendita</span><span>🏡 ${nAll} allevamenti</span></div>
       <span class="go">Vai al mercato →</span></div>
-    <div class="porta v" onclick="setArea('virt')"><span class="ico">🏁</span><h2>TROTTO VIRTUALE</h2>
-      <p>Una corsa simulata ogni ${imp.virt_minuti ?? 3} minuti con telecronaca: gioca vincente, accoppiata, trio, quartè e quintè con i Ferri Free.</p>
-      <span class="go">Vai alle corse →</span></div>
+    ${virtNascoste() ? '' : `<div class="porta v" onclick="setArea('virt')"><span class="ico">🏁</span><h2>TROTTO VIRTUALE</h2>
+      <p>Una corsa simulata ogni ${imp.virt_minuti ?? 3} minuti con telecronaca: gioca vincente, accoppiata, trio, quartè e quintè con i Frustini e vinci i gadget.</p>
+      <span class="go">Vai alle corse →</span></div>`}
     <h2 style="color:var(--verde);font-size:24px;margin:18px 0 6px">📰 Giornale del trotto</h2><div id="giornale" class="card"><p class="muted">Caricamento notizie…</p></div>`;
   caricaGiornale();
 }
@@ -1064,7 +1064,7 @@ function disegnaChip(){
   chipVal = [mioSaldo, mioSaldoSoci, mioSaldoVinti, mioFrust, mioFrustV, area].join('|');
   $('chip').innerHTML = `👤 ${esc(profilo.username)}<br><span class="chip-ferri" onclick="event.stopPropagation();apriTendFerri(this)">${area === 'virt' ? frustino(13) + ' ' + (mioFrust || 0).toLocaleString('it-IT') : ferro(13) + ' ' + (mioSaldo || 0).toLocaleString('it-IT')} ▾</span> · <a href="#" onclick="logout()" style="color:var(--oro)">esci</a>`;
 }
-function aggiornaChip(){ if ([mioSaldo, mioSaldoSoci, mioSaldoVinti, mioFrust, mioFrustV, area].join('|') !== chipVal) disegnaChip(); }
+function aggiornaChip(){ visVirtuali(); if ([mioSaldo, mioSaldoSoci, mioSaldoVinti, mioFrust, mioFrustV, area].join('|') !== chipVal) disegnaChip(); }
 async function apriTendFerri(el){
   let t = $('tendFerri'); if (t) { t.remove(); return; }
   try { const [a, b, c] = await Promise.all([sb.rpc('saldo_ferri'), sb.rpc('saldo_soci'), sb.rpc('saldo_vinti')]); mioSaldo = a.data ?? mioSaldo; mioSaldoSoci = b.data ?? mioSaldoSoci; mioSaldoVinti = c.data ?? mioSaldoVinti; } catch(e) {}
@@ -1153,7 +1153,8 @@ async function caricaVirtuali(){
 }
 async function renderVirtuali(){
   const pg = $('pg-virtuali');
-  if (imp.virt_attivo === false) { pg.innerHTML = '<div class="card muted">Le corse virtuali al momento sono spente.</div>'; return; }
+  if (virtNascoste()) { pg.innerHTML = '<div class="card muted">Le corse virtuali al momento sono sospese.</div>'; return; }
+  if (imp.virt_attivo === false) pg.innerHTML = '<div class="card" style="background:#fdecea">⏸ <b>Virtuali sospese</b>: le vedi solo tu perché sei admin.</div>';
   if (!vtCorse.length) pg.innerHTML = '<div class="card muted">Caricamento corse virtuali…</div>';
   try { const t0 = Date.now(); const { data } = await sb.rpc('ora_server'); if (data) vtOff = new Date(data) - (t0 + Date.now()) / 2; } catch(e) {}
   await caricaVirtuali();
@@ -1317,6 +1318,7 @@ const btnWaFrustini = (stile = '') => { const l = linkWaFrustini(); return l ? `
 let gadgetList = [], gadgetAdm = null, gadgetRich = [], editGadget = null, saldiFrust = null;
 async function renderGadget(){
   const pg = $('pg-gadget');
+  if (virtNascoste()) { pg.innerHTML = '<div class="card muted">Questa sezione al momento è sospesa.</div>'; return; }
   const [g] = await Promise.all([sb.from('gadget').select('*').eq('attivo', true).order('costo'), caricaFrustini()]);
   gadgetList = g.data || [];
   pg.innerHTML = `<div class="vt-hero"><div style="position:relative;z-index:1"><h2>🎁 Gadget</h2><div class="sub">Gadget offerti da noi e dagli sponsor: si riscattano con i Frustini vinti alle corse virtuali.</div>
@@ -1417,14 +1419,27 @@ async function statoGadget(id, stato){ const { error } = await sb.from('gadget_r
 async function annullaGadget(id){ if (!confirm('Annullare la richiesta e restituire i Frustini vinti?')) return; const { error } = await sb.rpc('annulla_gadget', { rid: id }); if (error) return alert(error.message); caricaGadgetAdm(); }
 
 function adminVirtuali(){
-  return `<div class="card"><h3 style="font-size:22px">🎰 Corse virtuali</h3>
+  return `<div class="card"><h3 style="font-size:22px">🎰 Corse virtuali${imp.virt_attivo === false ? ' <span style="background:var(--rosso);color:#fff;border-radius:12px;padding:1px 8px;font-size:13px;font-family:Inter">SOSPESE</span>' : ''}</h3>
     <p class="muted" style="font-size:13px">Corse simulate automatiche: si punta con i Frustini. Quelli vinti servono per i gadget.</p>
     <div class="row"><div><label>Una corsa ogni (minuti)</label><input type="number" id="vtMin" min="1" max="60" value="${imp.virt_minuti ?? 3}"></div><div><label>Puntata massima per corsa (Frustini)</label><input type="number" id="vtMax" min="1" value="${imp.virt_max ?? 50}"></div></div>
-    <label style="font-size:14px"><input type="checkbox" id="vtAtt" style="width:auto" ${imp.virt_attivo === false ? '' : 'checked'}> Corse virtuali attive</label>
-    <div id="vtMsg"></div><button class="btn full" onclick="salvaVirtuali()">Salva</button></div>`;
+    <div id="vtMsg"></div><button class="btn full" onclick="salvaVirtuali()">Salva</button>
+    <div style="margin-top:14px;padding:12px;border-radius:12px;background:${imp.virt_attivo === false ? '#fdecea' : '#eaf6ef'}">
+      <b>${imp.virt_attivo === false ? '⏸ Virtuali SOSPESE e nascoste' : '▶️ Virtuali ATTIVE e visibili'}</b>
+      <p class="muted" style="font-size:12px;margin:4px 0 8px">${imp.virt_attivo === false ? 'Nessun utente vede il pulsante VIRTUALI, le corse e i gadget. Solo voi admin le vedete, per controllare.' : 'Se le sospendi spariscono a tutti: pulsante VIRTUALI, corse e gadget. Saldi e richieste restano salvati, e le corse con puntate già fatte vengono comunque concluse e pagate.'}</p>
+      <button class="${imp.virt_attivo === false ? 'btn-oro' : 'btn-rosso'} full" onclick="sospendiVirtuali(${imp.virt_attivo === false})">${imp.virt_attivo === false ? '▶️ Riattiva e rendi visibili' : '⏸ Sospendi e nascondi a tutti'}</button></div></div>`;
+}
+async function sospendiVirtuali(on){
+  if (!confirm(on ? 'Riattivare le virtuali e renderle visibili a tutti?' : 'Sospendere le virtuali e nasconderle a tutti gli utenti?')) return;
+  const { error } = await sb.from('impostazioni').upsert({ id: 1, virt_attivo: !!on }); if (error) return alert(error.message);
+  await carica(); visVirtuali(); renderAdmin();
+}
+const virtNascoste = () => imp.virt_attivo === false && !profilo?.is_admin;
+function visVirtuali(){
+  const b = document.querySelector('#areaSw button[data-a="virt"]'); if (b) b.style.display = virtNascoste() ? 'none' : '';
+  if (virtNascoste() && area === 'virt') { chiudiTendina(); go('portale'); }
 }
 async function salvaVirtuali(){
-  const { error } = await sb.from('impostazioni').upsert({ id: 1, virt_minuti: Math.min(60, Math.max(1, parseInt($('vtMin').value, 10) || 3)), virt_max: Math.max(1, parseInt($('vtMax').value, 10) || 50), virt_attivo: $('vtAtt').checked });
+  const { error } = await sb.from('impostazioni').upsert({ id: 1, virt_minuti: Math.min(60, Math.max(1, parseInt($('vtMin').value, 10) || 3)), virt_max: Math.max(1, parseInt($('vtMax').value, 10) || 50) });
   if (error) return msg('vtMsg', error.message); await carica(); renderAdmin(); setTimeout(() => msg('vtMsg', 'Salvato ✅', 'ok'), 50);
 }
 
