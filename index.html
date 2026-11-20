@@ -753,8 +753,8 @@ function adminUtenti(){
   return `<div class="card"><h3 style="font-size:22px">👥 Utenti, numeri ed email (${tutti.length})</h3>
     <input id="cercaUt" placeholder="🔍 Cerca per nome, numero o email" value="${esc(cercaUt)}" oninput="cercaUt=this.value;clearTimeout(window._cu);window._cu=setTimeout(()=>{renderAdmin();const i=$('cercaUt');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},400)">
     <div style="max-height:420px;overflow-y:auto">${lista.map(([id,n]) => `<div class="row" style="align-items:center;border-bottom:1px solid #eee;padding:7px 0"><div style="flex:3;min-width:0"><b>${esc(n)}</b>${badgeSocio(id)}<div class="muted" style="font-size:13px">📱 ${telefoni[id] ? `<a href="tel:${telefoni[id]}">${esc(telefoni[id])}</a>` : '<i>nessun numero</i>'}${emails[id] ? ` · ✉️ ${esc(emails[id])}` : ''}</div></div>
-      ${telefoni[id] ? `<a class="btn-ghost" style="flex:0 0 auto;padding:6px 10px;text-decoration:none" href="https://wa.me/${numWa(telefoni[id])}" target="_blank" rel="noopener">💬</a>` : ''}<button class="btn-ghost" style="flex:0 0 auto;padding:6px 10px" title="Inserisci o cambia numero" onclick="numeroUtente('${id}')">✏️</button><button class="btn-ghost" style="flex:0 0 auto;padding:6px 10px" title="Nuova password" onclick="resetPassUtente('${id}')">🔑</button></div>`).join('') || '<p class="muted">Nessun utente trovato.</p>'}</div>
-    <p class="muted" style="font-size:12px;margin-top:6px">I numeri li vedete solo voi admin. ✏️ = inserisci o cambia il numero (lascia vuoto per toglierlo). 🔑 = dai una password nuova a chi l'ha dimenticata, poi comunicagliela tu.</p></div>`;
+      ${telefoni[id] ? `<a class="btn-ghost" style="flex:0 0 auto;padding:6px 10px;text-decoration:none" href="https://wa.me/${numWa(telefoni[id])}" target="_blank" rel="noopener">💬</a>` : ''}<button class="btn-ghost" style="flex:0 0 auto;padding:6px 10px" title="Inserisci o cambia numero" onclick="numeroUtente('${id}')">✏️</button><button class="btn-ghost" style="flex:0 0 auto;padding:6px 10px" title="Nuova password" onclick="resetPassUtente('${id}')">🔑</button>${id !== me.id ? `<button class="btn-rosso" style="flex:0 0 auto;padding:6px 10px" title="Elimina utente" onclick="eliminaUtente('${id}')">🗑</button>` : ''}</div>`).join('') || '<p class="muted">Nessun utente trovato.</p>'}</div>
+    <p class="muted" style="font-size:12px;margin-top:6px">I numeri li vedete solo voi admin. ✏️ = inserisci o cambia il numero (lascia vuoto per toglierlo). 🔑 = dai una password nuova a chi l'ha dimenticata, poi comunicagliela tu. 🗑 = elimina l'utente per sempre.</p></div>`;
 }
 async function numeroUtente(uid){
   const v = prompt(`Numero di cellulare di ${utenti[uid]}:\n(lascia vuoto per toglierlo)`, telefoni[uid] || ''); if (v === null) return;
@@ -768,6 +768,14 @@ async function numeroUtente(uid){
     const { error } = await sb.from('utenti_telefono').upsert({ user_id: uid, telefono: tel }); if (error) return alert(error.message);
   }
   telefoni = {}; await caricaTelefoni(); renderAdmin();
+}
+async function eliminaUtente(uid){
+  const nome = utenti[uid] || nuoviUtenti?.find(u => u.id === uid)?.username || 'questo utente';
+  if (!confirm(`Eliminare ${nome} per sempre?\n\nVerranno cancellati il suo account, il numero, l'email e i suoi messaggi in chat. Non si torna indietro.`)) return;
+  if (!confirm(`Sei sicuro? ${nome} non potrà più entrare (potrà solo registrarsi di nuovo).`)) return;
+  const { error } = await sb.rpc('admin_elimina_utente', { uid }); if (error) return alert(error.message.replace(/^.*?:\s*/, ''));
+  delete utenti[uid]; delete telefoni[uid]; delete emails[uid];
+  nuoviUtenti = null; await carica(); renderAdmin(); alert(`${nome} eliminato ✅`);
 }
 async function resetPassUtente(uid){
   const np = prompt(`Nuova password per ${utenti[uid]} (min 6 caratteri):`); if (!np) return;
@@ -805,7 +813,7 @@ function adminNuovi(){
     ${att.length ? att.map(u => `<div class="row" style="align-items:center;border-bottom:1px solid #eee;padding:8px 0"><div style="flex:3;min-width:0"><b>${esc(u.username || '?')}</b><div class="muted" style="font-size:13px">📱 ${telefoni[u.id] ? `<a href="tel:${telefoni[u.id]}">${esc(telefoni[u.id])}</a>` : 'nessun numero'}</div></div>
       ${telefoni[u.id] ? `<a class="btn-ghost" style="flex:0 0 auto;padding:6px 10px;text-decoration:none" href="https://wa.me/${numWa(telefoni[u.id])}" target="_blank" rel="noopener">💬</a>` : ''}
       <button class="btn-oro" style="flex:0 0 auto;padding:6px 12px" onclick="approvaUtente('${u.id}',true)">✅ Accetta</button><button class="btn-rosso" style="flex:0 0 auto;padding:6px 10px" onclick="approvaUtente('${u.id}',false)">✖</button></div>`).join('') : '<p class="muted">✅ Nessuna registrazione in attesa.</p>'}
-    ${rif.length ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">✖ Rifiutati (${rif.length})</summary>${rif.map(u => `<div class="row" style="align-items:center;border-bottom:1px solid #eee;padding:6px 0"><div style="flex:3">${esc(u.username || '?')}</div><button class="btn-ghost" style="flex:0 0 auto;padding:5px 10px;font-size:13px" onclick="approvaUtente('${u.id}',true)">Accetta comunque</button></div>`).join('')}</details>` : ''}</div>`;
+    ${rif.length ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">✖ Rifiutati (${rif.length})</summary>${rif.map(u => `<div class="row" style="align-items:center;border-bottom:1px solid #eee;padding:6px 0"><div style="flex:3">${esc(u.username || '?')}</div><button class="btn-ghost" style="flex:0 0 auto;padding:5px 10px;font-size:13px" onclick="approvaUtente('${u.id}',true)">Accetta comunque</button><button class="btn-rosso" style="flex:0 0 auto;padding:5px 10px;font-size:13px" onclick="eliminaUtente('${u.id}')">🗑</button></div>`).join('')}</details>` : ''}</div>`;
 }
 async function approvaUtente(uid, ok){
   const u = nuoviUtenti.find(x => x.id === uid);
