@@ -288,26 +288,39 @@ async function logout(){ fermaChat(); if (presenza) { await presenza.untrack(); 
 const CHAT_EMOJI = ['🐎','🐴','🏇','🦄','🎠','🥕','🌾','🍎','🧲','🏆','🥇','🥈','🥉','🏁','⏱️','🎯','🍀'];
 const emojiVietate = t => { let x = t; CHAT_EMOJI.forEach(e => { x = x.split(e).join(''); }); x = x.replace(/\uFE0F/g, ''); return /[\u2600-\u27BF\u2B00-\u2BFF\u200D\u2300-\u23FF]|[\u{1F000}-\u{1FAFF}]/u.test(x); };
 function metEmoji(e){ const i = $('chatTxt'); if (!i) return; const p = i.selectionStart ?? i.value.length; i.value = i.value.slice(0, p) + e + i.value.slice(i.selectionEnd ?? p); i.focus(); i.selectionStart = i.selectionEnd = p + e.length; }
-let chatMsgs = [], chatCanale = null, chatAperta = false, chatNuovi = 0, chatBan = null;
+let chatMsgs = [], chatCanale = null, chatAperta = false, chatBan = null, chatSel = 'generale', chatTab = 'generale', chatBloccati = new Set(), chatLetti = {};
+try { chatLetti = JSON.parse(localStorage.getItem('ft_chat_letti') || '{}'); } catch(e) {}
 const oraBreve = d => new Date(d).toLocaleTimeString('it-IT', { hour:'2-digit', minute:'2-digit' });
+const canaleDi = m => m.canale || 'generale';
+const dmId = altro => 'dm-' + [me.id, altro].sort().join('_');
+const dmAltro = c => c.slice(3).split('_').find(x => x !== me.id);
+const nomeCanale = c => c === 'generale' ? '💬 Generale' : c.startsWith('comp-') ? '🏆 ' + (competizioni.find(x => 'comp-' + x.id === c)?.nome || 'Competizione') : '✉️ ' + (utenti[dmAltro(c)] || 'Utente');
+const nonLetti = c => chatMsgs.filter(m => canaleDi(m) === c && m.user_id !== me.id && new Date(m.created_at) > new Date(chatLetti[c] || 0)).length;
+function segnaLetto(c){ chatLetti[c] = new Date().toISOString(); try { localStorage.setItem('ft_chat_letti', JSON.stringify(chatLetti)); } catch(e) {} }
+const mieComp = () => competizioni.filter(c => !c.annullata && (profilo.is_admin || partecipanti.some(p => p.competizione_id === c.id && p.user_id === me.id)));
+const mieiDm = () => [...new Set(chatMsgs.map(canaleDi).filter(c => c.startsWith('dm-')))].sort((a,b) => ultimoIn(b) - ultimoIn(a));
+const ultimoIn = c => Math.max(0, ...chatMsgs.filter(m => canaleDi(m) === c).map(m => new Date(m.created_at).getTime()));
+const totNonLetti = () => { const cs = new Set(['generale', ...mieComp().map(c => 'comp-' + c.id), ...mieiDm()]); return [...cs].reduce((t, c) => t + nonLetti(c), 0); };
 async function avviaChat(){
   if (chatCanale) return;
-  const [{ data }, b] = await Promise.all([ sb.from('chat_messaggi').select('*').order('created_at', { ascending:false }).limit(80), caricaBanChat() ]);
-  if (!data) return; // tabella non ancora creata
+  const [{ data }] = await Promise.all([ sb.from('chat_messaggi').select('*').order('created_at', { ascending:false }).limit(400), caricaBanChat(), caricaBlocchiChat() ]);
+  if (!data) return;
   chatMsgs = data.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+  if (!chatLetti.generale) segnaLetto('generale');
   document.body.classList.add('has-chat'); $('chatBar').classList.remove('hidden');
   aggiornaBarraChat();
   chatCanale = sb.channel('chat-ft').on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messaggi' }, ev => {
     if (chatMsgs.some(m => m.id === ev.new.id)) return;
-    chatMsgs.push(ev.new); if (chatMsgs.length > 150) chatMsgs.shift();
-    if (chatAperta) disegnaChat(true); else if (ev.new.user_id !== me.id) { chatNuovi++; }
+    chatMsgs.push(ev.new); if (chatMsgs.length > 600) chatMsgs.shift();
+    if (chatAperta && chatSel === canaleDi(ev.new) && chatVistaCanale) { segnaLetto(chatSel); disegnaChat(true); } else if (chatAperta) disegnaSchede();
     aggiornaBarraChat();
   }).on('postgres_changes', { event:'DELETE', schema:'public', table:'chat_messaggi' }, ev => {
-    chatMsgs = chatMsgs.filter(m => m.id !== ev.old.id); aggiornaBarraChat(); if (chatAperta) disegnaChat();
+    chatMsgs = chatMsgs.filter(m => m.id !== ev.old.id); aggiornaBarraChat(); if (chatAperta && chatVistaCanale) disegnaChat();
   }).subscribe();
 }
 function fermaChat(){ if (chatCanale) { sb.removeChannel(chatCanale); chatCanale = null; } $('chatBar').classList.add('hidden'); document.body.classList.remove('has-chat'); }
 async function caricaBanChat(){ const { data } = await sb.from('chat_ban').select('*').eq('user_id', me.id).maybeSingle(); chatBan = data || null; }
+async function caricaBlocchiChat(){ const { data } = await sb.from('chat_blocchi').select('bloccato').eq('user_id', me.id); chatBloccati = new Set((data || []).map(x => x.bloccato)); }
 function statoBanChat(){
   if (!chatBan) return null;
   if (chatBan.per_sempre) return 'Sei stato <b>escluso dalla chat</b> per linguaggio offensivo ripetuto.';
@@ -315,24 +328,60 @@ function statoBanChat(){
   return null;
 }
 function aggiornaBarraChat(){
-  const ult = chatMsgs.slice(-15);
+  const ult = chatMsgs.filter(m => canaleDi(m) === 'generale').slice(-15);
   const items = ult.length ? ult.map(m => `<span><b>${esc(m.username)}:</b> ${esc(m.testo)}</span>`).join('') : '<span>Nessun messaggio: tocca qui e scrivi tu il primo! 💬</span>';
   const t = $('chatTrack'); t.innerHTML = items + items;
   const len = t.textContent.length; t.style.animationDuration = Math.max(14, len * 0.11) + 's';
-  $('chatNuovi').textContent = chatNuovi > 99 ? '99+' : chatNuovi; $('chatNuovi').classList.toggle('hidden', !chatNuovi);
+  const n = totNonLetti(); $('chatNuovi').textContent = n > 99 ? '99+' : n; $('chatNuovi').classList.toggle('hidden', !n);
 }
-function apriChat(){
-  chatAperta = true; chatNuovi = 0; aggiornaBarraChat();
+let chatVistaCanale = true;
+function apriChat(canale){
+  chatAperta = true;
+  if (canale) { chatSel = canale; chatTab = canale === 'generale' ? 'generale' : canale.startsWith('comp-') ? 'comp' : 'dm'; chatVistaCanale = true; }
+  else { chatTab = 'generale'; chatSel = 'generale'; chatVistaCanale = true; }
   apriModal(`<h2 style="color:var(--verde);font-size:28px">💬 Chat FantaTrotto</h2>
-    <p class="muted" style="font-size:12px">Rispetta tutti. Chi offende viene <b>bloccato 1 ora</b>; alla seconda volta viene <b>escluso dalla chat</b>. Emoji consentite: solo quelle dei cavalli.</p>
-    <div class="chat-list" id="chatList"></div><div id="chatScrivi"></div>${profilo.is_admin ? '<div id="chatAdmin"></div>' : ''}`);
-  disegnaChat(); disegnaInputChat(); if (profilo.is_admin) caricaBloccatiChat();
+    <div id="chatSchede" style="display:flex;gap:6px;margin:6px 0"></div>
+    <div id="chatCorpo"></div>`);
+  disegnaSchede(); disegnaVista();
+}
+function disegnaSchede(){
+  const el = $('chatSchede'); if (!el) return;
+  const nc = mieComp().reduce((t, c) => t + nonLetti('comp-' + c.id), 0), nd = mieiDm().reduce((t, c) => t + nonLetti(c), 0), ng = nonLetti('generale');
+  const b = (k, t, n) => `<button onclick="chatTab='${k}';chatVistaCanale=${k === 'generale'};chatSel='generale';disegnaSchede();disegnaVista()" style="flex:1;padding:8px 4px;border-radius:10px;font-weight:700;font-size:13px;border:2px solid var(--oro);background:${chatTab===k?'var(--oro)':'transparent'};color:${chatTab===k?'#111':'var(--verde)'}">${t}${n ? ` <span style="background:#d62828;color:#fff;border-radius:9px;padding:0 6px;font-size:11px">${n}</span>` : ''}</button>`;
+  el.innerHTML = b('generale', '💬 Generale', chatTab === 'generale' ? 0 : ng) + b('comp', '🏆 Competizioni', nc) + b('dm', '✉️ Privati', nd);
+  aggiornaBarraChat();
+}
+function disegnaVista(){
+  const el = $('chatCorpo'); if (!el) return;
+  if (chatVistaCanale) {
+    const dm = chatSel.startsWith('dm-'), altro = dm ? dmAltro(chatSel) : null;
+    el.innerHTML = `${chatSel !== 'generale' ? `<div style="display:flex;align-items:center;gap:8px;margin:4px 0"><button class="btn-ghost" style="padding:4px 10px" onclick="chatVistaCanale=false;disegnaVista()">←</button><b style="flex:1">${esc(nomeCanale(chatSel))}</b>${dm ? `<button class="btn-ghost" style="padding:4px 10px;font-size:12px" onclick="bloccaUtenteChat('${altro}')">${chatBloccati.has(altro) ? '✅ Sblocca' : '🚫 Blocca'}</button>` : ''}</div>` : ''}
+      <p class="muted" style="font-size:12px;margin:2px 0">${chatSel === 'generale' ? 'Rispetta tutti. Chi offende viene <b>bloccato 1 ora</b>; alla seconda volta viene <b>escluso dalla chat</b>. Solo emoji dei cavalli.' : dm ? '🔒 Chat privata: la leggete solo voi due. Le regole contro le offese valgono anche qui.' : '🔒 Chat riservata agli iscritti di questa competizione.'}</p>
+      ${dm && chatBloccati.has(altro) ? '<div class="msg err">Hai bloccato questo utente: non può scriverti in privato.</div>' : ''}
+      <div class="chat-list" id="chatList"></div><div id="chatScrivi"></div>${profilo.is_admin && chatSel === 'generale' ? '<div id="chatAdmin"></div>' : ''}`;
+    segnaLetto(chatSel); disegnaChat(); disegnaInputChat(); disegnaSchede(); if (profilo.is_admin && chatSel === 'generale') caricaBloccatiChat();
+    return;
+  }
+  if (chatTab === 'comp') {
+    const cs = mieComp();
+    el.innerHTML = cs.length ? cs.map(c => { const n = nonLetti('comp-' + c.id), ul = chatMsgs.filter(m => canaleDi(m) === 'comp-' + c.id).slice(-1)[0];
+      return `<div onclick="chatSel='comp-${c.id}';chatVistaCanale=true;disegnaVista()" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid #eee"><div style="font-size:24px">${c.solo_soci ? '🔒' : '🏆'}</div><div style="flex:1;min-width:0"><b>${esc(c.nome)}</b><div class="muted" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ul ? esc(ul.username) + ': ' + esc(ul.testo) : 'Nessun messaggio'}</div></div>${n ? `<span style="background:#d62828;color:#fff;border-radius:10px;padding:1px 8px;font-size:12px">${n}</span>` : ''}</div>`; }).join('')
+      : '<p class="muted" style="padding:20px 0;text-align:center">Le chat delle competizioni si aprono quando ti iscrivi a una competizione.</p>';
+    return;
+  }
+  const ds = mieiDm();
+  const opz = Object.entries(utenti).filter(([id]) => id !== me.id).sort((a,b) => a[1].localeCompare(b[1])).map(([id,n]) => `<option value="${id}">${esc(n)}</option>`).join('');
+  el.innerHTML = `<div style="display:flex;gap:6px;margin:6px 0 4px"><select id="dmNuovo" style="margin:0"><option value="">✉️ Scrivi a…</option>${opz}</select><button class="btn-oro" style="flex:0 0 auto" onclick="const v=$('dmNuovo').value; if(v){chatSel=dmId(v);chatVistaCanale=true;disegnaVista()}">Apri</button></div>`
+    + (ds.length ? ds.map(c => { const n = nonLetti(c), ul = chatMsgs.filter(m => canaleDi(m) === c).slice(-1)[0], al = dmAltro(c);
+      return `<div onclick="chatSel='${c}';chatVistaCanale=true;disegnaVista()" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid #eee"><div style="font-size:24px">${chatBloccati.has(al) ? '🚫' : '✉️'}</div><div style="flex:1;min-width:0"><b>${esc(utenti[al] || 'Utente')}</b>${badgeSocio(al)}<div class="muted" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ul ? (ul.user_id === me.id ? 'Tu: ' : '') + esc(ul.testo) : ''}</div></div>${n ? `<span style="background:#d62828;color:#fff;border-radius:10px;padding:1px 8px;font-size:12px">${n}</span>` : ''}</div>`; }).join('')
+      : '<p class="muted" style="padding:20px 0;text-align:center">Nessuna conversazione privata. Scegli un utente qui sopra per scrivergli.</p>');
 }
 function disegnaChat(nuovo){
   const el = $('chatList'); if (!el) return;
   const giu = !nuovo || el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-  el.innerHTML = chatMsgs.length ? chatMsgs.map(m => `<div class="chat-m ${m.user_id===me.id?'mio':''}"><span class="u">${esc(m.username)}</span>${badgeSocio(m.user_id)}<span class="t">${fmtData(m.created_at).split(' ').slice(0,2).join(' ')} ${oraBreve(m.created_at)}</span><div>${esc(m.testo)}</div>
-    ${profilo.is_admin && m.user_id !== me.id ? `<div class="adm"><button class="btn-ghost" onclick="cancellaMsgChat(${m.id})">🗑</button><button class="btn-ghost" onclick="bloccaChat('${m.user_id}','${esc(m.username).replace(/'/g,'')}',false)">🔇 1 ora</button><button class="btn-rosso" onclick="bloccaChat('${m.user_id}','${esc(m.username).replace(/'/g,'')}',true)">⛔ Escludi</button></div>` : profilo.is_admin ? `<div class="adm"><button class="btn-ghost" onclick="cancellaMsgChat(${m.id})">🗑</button></div>` : ''}</div>`).join('') : '<p class="muted" style="text-align:center;margin-top:30px">Ancora nessun messaggio. Rompi il ghiaccio! 🐎</p>';
+  const lista = chatMsgs.filter(m => canaleDi(m) === chatSel);
+  el.innerHTML = lista.length ? lista.map(m => `<div class="chat-m ${m.user_id===me.id?'mio':''}"><span class="u">${esc(m.username)}</span>${badgeSocio(m.user_id)}<span class="t">${fmtData(m.created_at).split(' ').slice(0,2).join(' ')} ${oraBreve(m.created_at)}</span><div>${esc(m.testo)}</div>
+    ${m.user_id !== me.id && !chatSel.startsWith('dm-') ? `<div class="adm"><button class="btn-ghost" onclick="apriChat(dmId('${m.user_id}'))">✉️ Privato</button>${profilo.is_admin ? `<button class="btn-ghost" onclick="cancellaMsgChat(${m.id})">🗑</button><button class="btn-ghost" onclick="bloccaChat('${m.user_id}','${esc(m.username).replace(/'/g,'')}',false)">🔇 1 ora</button><button class="btn-rosso" onclick="bloccaChat('${m.user_id}','${esc(m.username).replace(/'/g,'')}',true)">⛔ Escludi</button>` : ''}</div>` : profilo.is_admin && !chatSel.startsWith('dm-') ? `<div class="adm"><button class="btn-ghost" onclick="cancellaMsgChat(${m.id})">🗑</button></div>` : ''}</div>`).join('') : '<p class="muted" style="text-align:center;margin-top:30px">Ancora nessun messaggio. Rompi il ghiaccio! 🐎</p>';
   if (giu) el.scrollTop = el.scrollHeight;
 }
 function disegnaInputChat(){
@@ -344,12 +393,19 @@ async function inviaChat(){
   const inp = $('chatTxt'); const t = (inp?.value || '').trim(); if (!t) return;
   if (emojiVietate(t)) { msg('chatMsg', 'Nella chat puoi usare solo le emoji dei cavalli qui sopra 🐎'); return; }
   inp.disabled = true;
-  const { data, error } = await sb.rpc('invia_chat', { testo: t });
+  const { data, error } = await sb.rpc('invia_chat', { testo: t, canale_id: chatSel });
   inp.disabled = false;
   if (error) { msg('chatMsg', error.message.replace(/^.*?:\s*/, '')); return; }
   if (data === 'bloccato' || data === 'escluso') { await caricaBanChat(); disegnaInputChat(); return; }
   inp.value = ''; inp.focus();
   if (!chatCanale) { await avviaChat(); }
+}
+async function bloccaUtenteChat(uid){
+  const bl = chatBloccati.has(uid);
+  if (!confirm(bl ? `Sbloccare ${utenti[uid]}? Potrà di nuovo scriverti in privato.` : `Bloccare ${utenti[uid]}? Non potrà più scriverti in privato.`)) return;
+  const q = bl ? sb.from('chat_blocchi').delete().eq('user_id', me.id).eq('bloccato', uid) : sb.from('chat_blocchi').insert({ user_id: me.id, bloccato: uid });
+  const { error } = await q; if (error) return alert(error.message);
+  await caricaBlocchiChat(); disegnaVista();
 }
 async function cancellaMsgChat(id){
   if (!confirm('Cancellare questo messaggio?')) return;
